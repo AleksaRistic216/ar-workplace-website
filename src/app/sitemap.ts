@@ -17,5 +17,13 @@ export default function sitemap(): MetadataRoute.Sitemap {
       changeFrequency: "monthly",
       priority: 0.8,
     },
+    // The four pages the landing page was split into. Each has its own title and description, and
+    // is the canonical home of what used to be an anchor on "/".
+    ...["features", "cross-platform", "pricing", "faq"].map((path) => ({
+      url: `${BASE_URL}/${path}`,
+      lastModified: new Date(),
+      changeFrequency: "monthly" as const,
+      priority: 0.8,
+    })),
   ];
 }

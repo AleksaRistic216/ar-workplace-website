@@ -5,9 +5,12 @@ const pillars = [
     body: "The entire terminal grid renders in a single GPU draw call. Smooth scrolling at any size, no CPU overhead on rendering.",
   },
   {
-    tag: "PTY-backed",
-    heading: "Terminal that just works.",
-    body: "Full VT support, tabbed sessions, scrollback. No setup, no quirks.",
+    // Promoted from a feature card in Sep 2026: six of the twelve user-facing changes shipped
+    // since the page was written were AI-workspace features, and the page was still selling CPT
+    // as a terminal that happens to have AI bolted on.
+    tag: "knows your repo",
+    heading: "Built for AI-assisted work.",
+    body: "CPT spots Claude Code or Copilot running in a pane and tracks it live on the view tab. A built-in inventory lists the skills, agents, commands, hooks and MCP servers the repository you are standing in actually has.",
   },
   {
     tag: "handled for you",

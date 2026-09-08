@@ -1,14 +1,64 @@
-const shortcuts = [
-  { action: "Copy selection", keys: "Ctrl+Shift+C" },
-  { action: "Paste text", keys: "Ctrl+Shift+V" },
-  { action: "Paste image", keys: "Ctrl+V" },
-  { action: "New terminal tab", keys: "Ctrl+Shift+T" },
-  { action: "Split below", keys: "Ctrl+Shift+G" },
-  { action: "Split right", keys: "Ctrl+Shift+F" },
-  { action: "Close tab / widget", keys: "Ctrl+Shift+W" },
-  { action: "New view", keys: "Alt+T" },
-  { action: "Rename view", keys: "Alt+R" },
-  { action: "Redistribute layout", keys: "Ctrl+Shift+Alt+L" },
+/*
+ * Every row here names a binding that exists in the app. The source of truth is
+ * `ShortcutManager::registerAllDefaults()` in the CPT repo, plus the combos `TerminalWidget`
+ * and `App` handle directly (copy/paste, Ctrl+1..9, Alt+1..9, Alt+Home/End).
+ *
+ * The table previously advertised "Split below — Ctrl+Shift+G" and "Split right — Ctrl+Shift+F".
+ * Neither existed: there are no split bindings at all, Ctrl+Shift+G is unbound, and Ctrl+Shift+F
+ * is Fullscreen Terminal. It also claimed Ctrl+V pastes an image, which nothing implements.
+ * Check a row against the source before adding it — `/release-sync` does exactly this.
+ */
+const shortcutGroups = [
+  {
+    group: "Terminal",
+    items: [
+      {
+        action: "New terminal",
+        keys: "Ctrl+Shift+T",
+        note: "A new pane by default, or a tab beside the current one — Settings → Terminal",
+      },
+      { action: "Close terminal", keys: "Ctrl+Shift+W" },
+      { action: "Fullscreen the pane", keys: "Ctrl+Shift+F" },
+      { action: "Copy selection", keys: "Ctrl+Shift+C" },
+      { action: "Paste", keys: "Ctrl+Shift+V" },
+      { action: "Zoom in / out", keys: "Ctrl+Shift+= / −" },
+      { action: "Switch tab within a pane", keys: "Ctrl+1…9" },
+    ],
+  },
+  {
+    group: "Panes",
+    items: [
+      { action: "Focus left / right", keys: "Ctrl+Alt+Home / End" },
+      { action: "Focus up / down", keys: "Ctrl+Alt+PgUp / PgDn" },
+      { action: "Move left / right", keys: "Ctrl+Shift+Alt+Home / End" },
+      { action: "Move up / down", keys: "Ctrl+Shift+Alt+PgUp / PgDn" },
+      { action: "Shrink / grow width", keys: "Ctrl+Shift+Alt+[ / ;" },
+      { action: "Shrink / grow height", keys: "Ctrl+Shift+Alt+] / '" },
+      {
+        action: "Pin size and position",
+        keys: "Ctrl+Shift+Alt+P",
+        note: "A pinned pane keeps its size when the layout is redistributed",
+      },
+    ],
+  },
+  {
+    group: "Views",
+    items: [
+      { action: "New view", keys: "Alt+T" },
+      { action: "Rename view", keys: "Alt+R" },
+      { action: "Jump to view 1…9", keys: "Alt+1…9" },
+      { action: "Previous / next view", keys: "Alt+Home / End" },
+      { action: "Redistribute layout", keys: "Ctrl+Shift+Alt+L" },
+    ],
+  },
+  {
+    group: "AI Inventory",
+    items: [
+      { action: "Collapse or expand a group", keys: "S A C H M I" },
+      { action: "Jump to a group", keys: "Ctrl + that letter" },
+      { action: "Focus the filter", keys: "F" },
+    ],
+  },
 ];
 
 const quirks = [
@@ -21,16 +71,16 @@ const quirks = [
     ),
     items: [
       {
-        title: "Clipboard that actually works",
-        body: "Ctrl+Shift+V pastes text. Ctrl+V pastes images. Same shortcuts on every platform - no relearning when you switch machines.",
+        title: "One clipboard, one pair of keys",
+        body: "Ctrl+Shift+C copies, Ctrl+Shift+V pastes — the same two shortcuts on every platform, so nothing to relearn when you switch machines. Alt+key still passes straight through to the shell, so an AI CLI running in the pane keeps its own bindings.",
       },
       {
-        title: "Instant large paste",
-        body: "Windows ConPTY throttles large pastes, making them slow and stuttery. CPT bypasses this - long text pastes instantly, regardless of size.",
+        title: "The prompt's directory, tracked correctly",
+        body: "Under ConPTY, Windows reports the wrong working directory for a running shell. CPT asks the shell to report its own over OSC 7, follows it through child processes, and records the whole chain in diagnostics when it does not arrive — so panes that track your directory stay pointed at the right repository.",
       },
       {
         title: "Any shell you want",
-        body: "PowerShell, PowerShell Core, cmd.exe, or Git Bash - pick your shell in Settings. Git Bash uses the ConPTY-compatible binary (git/bin/bash.exe), not the MinTTY wrapper.",
+        body: "Name the shell in Settings → Terminal — powershell.exe, pwsh, cmd.exe, bash, or wsl.exe. PowerShell is instrumented for directory reporting out of the box; the choice applies to new terminals.",
       },
       {
         title: "No console window",
@@ -66,23 +116,20 @@ export default function CrossPlatform() {
   return (
     <section id="cross-platform" className="py-24 px-6">
       <div className="max-w-6xl mx-auto">
-        {/* Divider */}
-        <div className="h-px mb-24" style={{ background: "var(--color-border)" }} />
-
         {/* Header */}
         <div className="text-center mb-16">
           <p className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: "var(--color-accent)" }}>
             Cross-Platform
           </p>
-          <h2
+          <h1
             className="text-3xl md:text-4xl font-bold tracking-tight"
             style={{ color: "var(--color-foreground)" }}
           >
-            One cross-platform terminal. Linux, Windows, macOS.
-          </h2>
+            One cross-platform terminal. Linux and Windows.
+          </h1>
           <p className="mt-4 max-w-xl mx-auto text-base" style={{ color: "var(--color-muted)" }}>
-            The same shortcuts work identically on Linux, Windows, and macOS. No mental context-switching,
-            no muscle-memory retraining when you switch machines.
+            The same shortcuts work identically on Linux and Windows. No mental context-switching,
+            no muscle-memory retraining when you switch machines. macOS is in progress.
           </p>
         </div>
 
@@ -162,22 +209,41 @@ export default function CrossPlatform() {
             <span>Action</span>
             <span>Shortcut</span>
           </div>
-          {shortcuts.map((s, i) => (
-            <div
-              key={s.action}
-              className="grid grid-cols-2 px-5 py-3 items-center text-sm border-b last:border-b-0"
-              style={{
-                borderColor: "var(--color-border)",
-                background: i % 2 === 0 ? "var(--color-surface)" : "transparent",
-              }}
-            >
-              <span style={{ color: "var(--color-muted)" }}>{s.action}</span>
-              <span
-                className="font-mono text-xs px-2 py-0.5 rounded justify-self-start"
-                style={{ background: "var(--color-surface-2)", color: "var(--color-foreground)" }}
+          {shortcutGroups.map((g) => (
+            <div key={g.group}>
+              <div
+                className="px-5 py-2 border-b text-[11px] font-semibold uppercase tracking-widest"
+                style={{
+                  background: "var(--color-surface-2)",
+                  borderColor: "var(--color-border)",
+                  color: "var(--color-accent)",
+                }}
               >
-                {s.keys}
-              </span>
+                {g.group}
+              </div>
+              {g.items.map((s, i) => (
+                <div
+                  key={s.action}
+                  className="grid grid-cols-2 gap-x-4 px-5 py-3 items-baseline text-sm border-b last:border-b-0"
+                  style={{
+                    borderColor: "var(--color-border)",
+                    background: i % 2 === 0 ? "var(--color-surface)" : "transparent",
+                  }}
+                >
+                  <span style={{ color: "var(--color-muted)" }}>
+                    {s.action}
+                    {"note" in s && s.note ? (
+                      <span className="block mt-1 text-xs opacity-70">{s.note}</span>
+                    ) : null}
+                  </span>
+                  <span
+                    className="font-mono text-xs px-2 py-0.5 rounded justify-self-start"
+                    style={{ background: "var(--color-surface-2)", color: "var(--color-foreground)" }}
+                  >
+                    {s.keys}
+                  </span>
+                </div>
+              ))}
             </div>
           ))}
           <div

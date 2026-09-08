@@ -3,17 +3,19 @@
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import HashLink from "@/components/HashLink";
+import { usePathname } from "next/navigation";
 
+// Real routes since the landing page was split up; these were "/#features" and friends.
 const links = [
-  { label: "Features", href: "/#features" },
-  { label: "Cross-Platform", href: "/#cross-platform" },
-  { label: "Pricing", href: "/#pricing" },
-  { label: "FAQ", href: "/#faq" },
+  { label: "Features", href: "/features" },
+  { label: "Cross-Platform", href: "/cross-platform" },
+  { label: "Pricing", href: "/pricing" },
+  { label: "FAQ", href: "/faq" },
 ];
 
 export default function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false);
+  const pathname = usePathname();
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -41,16 +43,20 @@ export default function Navbar() {
 
         {/* Desktop nav */}
         <div className="hidden md:flex items-center gap-7">
-          {links.map(({ label, href }) => (
-            <HashLink
-              key={label}
-              href={href}
-              className="text-sm cpt-quiet"
-              style={{ color: "var(--color-muted)" }}
-            >
-              {label}
-            </HashLink>
-          ))}
+          {links.map(({ label, href }) => {
+            const active = pathname === href;
+            return (
+              <Link
+                key={label}
+                href={href}
+                aria-current={active ? "page" : undefined}
+                className="text-sm cpt-quiet"
+                style={{ color: active ? "var(--color-foreground)" : "var(--color-muted)" }}
+              >
+                {label}
+              </Link>
+            );
+          })}
           <Link href="/download" className="text-sm px-4 py-1.5 rounded-md font-medium cpt-accent-btn">
             Download
           </Link>
@@ -80,17 +86,21 @@ export default function Navbar() {
           className="md:hidden border-t px-6 py-4 flex flex-col gap-4"
           style={{ borderColor: "var(--color-border)", background: "var(--color-background)" }}
         >
-          {links.map(({ label, href }) => (
-            <HashLink
-              key={label}
-              href={href}
-              className="text-sm cpt-quiet"
-              style={{ color: "var(--color-muted)" }}
-              onNavigate={() => setMenuOpen(false)}
-            >
-              {label}
-            </HashLink>
-          ))}
+          {links.map(({ label, href }) => {
+            const active = pathname === href;
+            return (
+              <Link
+                key={label}
+                href={href}
+                aria-current={active ? "page" : undefined}
+                className="text-sm cpt-quiet"
+                style={{ color: active ? "var(--color-foreground)" : "var(--color-muted)" }}
+                onClick={() => setMenuOpen(false)}
+              >
+                {label}
+              </Link>
+            );
+          })}
           <Link
             href="/download"
             className="text-sm px-4 py-2 rounded-md text-center font-medium cpt-accent-btn"
