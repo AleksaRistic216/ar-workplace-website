@@ -17,8 +17,8 @@ import { CWD, HOST, demo, type Color, type Line, type Op } from "@/lib/demo-sess
  * this component ever reads the state.
  */
 
-type Pane = { id: number; lines: Line[]; input: string };
-type View = { id: number; name: string; panes: Pane[]; active: number; ai: string | null; tokens: number };
+type Pane = { id: number; kind: "term" | "inventory"; lines: Line[]; input: string };
+type View = { id: number; name: string; panes: Pane[]; active: number; ai: string | null };
 type Session = {
   views: View[];
   activeView: number;
@@ -40,7 +40,7 @@ const COLORS: Record<Color, string> = {
 
 function initial(): Session {
   return {
-    views: [{ id: 1, name: "Main", panes: [{ id: 1, lines: [], input: "" }], active: 0, ai: null, tokens: 0 }],
+    views: [{ id: 1, name: "Main", panes: [{ id: 1, kind: "term", lines: [], input: "" }], active: 0, ai: null }],
     activeView: 0,
     keys: null,
     caption: "",
@@ -75,8 +75,15 @@ function applyInstant(s: Session, op: Op): Session {
     }
     case "split": {
       const v = view(s);
-      v.panes = [...v.panes, { id: s.nextId++, lines: [], input: "" }];
+      v.panes = [...v.panes, { id: s.nextId++, kind: "term", lines: [], input: "" }];
       v.active = v.panes.length - 1;
+      return s;
+    }
+    case "inventory": {
+      const v = view(s);
+      // Docked, but focus is deliberately left on the terminal: the AI badge belongs to the pane
+      // running the tool, and moving the focus ring off it would take the badge with it.
+      v.panes = [...v.panes, { id: s.nextId++, kind: "inventory", lines: [], input: "" }];
       return s;
     }
     case "newview": {
@@ -85,10 +92,9 @@ function applyInstant(s: Session, op: Op): Session {
         {
           id: s.nextId++,
           name: op.name,
-          panes: [{ id: s.nextId++, lines: [], input: "" }],
+          panes: [{ id: s.nextId++, kind: "term", lines: [], input: "" }],
           active: 0,
           ai: null,
-          tokens: 0,
         },
       ];
       s.activeView = s.views.length - 1;
@@ -99,9 +105,6 @@ function applyInstant(s: Session, op: Op): Session {
       return s;
     case "ai":
       view(s).ai = op.tool;
-      return s;
-    case "tokens":
-      view(s).tokens = op.to;
       return s;
     case "key":
       s.keys = op.keys;
@@ -242,16 +245,6 @@ export default function TerminalDemo() {
           }
           break;
         }
-        case "tokens": {
-          const from = view(s).tokens;
-          const frames = Math.max(1, Math.round(op.ms / 60));
-          for (let i = 1; i <= frames; i++) {
-            view(s).tokens = Math.round(from + (op.to - from) * (i / frames));
-            paint();
-            await sleep(60);
-          }
-          break;
-        }
         case "key": {
           applyInstant(s, op);
           paint();
@@ -306,7 +299,7 @@ export default function TerminalDemo() {
           boxShadow: "0 24px 70px rgba(0,0,0,0.55)",
         }}
         role="img"
-        aria-label="A Cross Platform Terminal session: a release build runs in one pane, the pane is split with Ctrl+Shift+F, Claude Code starts in the new pane and appears in the status bar with a live token count, then a second view is opened with Alt+T and the first view is returned to with its layout intact."
+        aria-label="A Cross Platform Terminal session: a release build runs in one pane, a second pane is opened with Ctrl+Shift+T, Claude Code starts in it and the pane picks up an AI badge, then a second view is opened with Alt+T and the first view is returned to with its layout intact."
       >
         <div aria-hidden style={{ fontFamily: "var(--font-mono), ui-monospace, monospace" }}>
           {/* Title bar */}
@@ -315,7 +308,8 @@ export default function TerminalDemo() {
             style={{ background: "#141419", borderColor: "var(--color-border)", color: "var(--color-muted)" }}
           >
             <div className="flex items-center gap-4">
-              {["File", "View", "Widgets", "Settings"].map((m) => (
+              {/* The product's menu bar is exactly these two — File and View were removed in #6. */}
+              {["Widgets", "Settings"].map((m) => (
                 <span key={m}>{m}</span>
               ))}
             </div>
@@ -338,9 +332,10 @@ export default function TerminalDemo() {
                   key={tab.id}
                   className="px-3 py-1.5 rounded-t"
                   style={{
-                    color: on ? "var(--color-accent)" : "var(--color-muted)",
-                    background: on ? "#0a0a0d" : "transparent",
-                    borderBottom: `2px solid ${on ? "var(--color-accent)" : "transparent"}`,
+                    color: on ? "var(--color-view-tab)" : "var(--color-muted)",
+                    background: on ? "#26191a" : "transparent",
+                    // Top accent, not bottom: ViewManager.cpp draws "Active: red top accent".
+                    borderTop: `2px solid ${on ? "var(--color-view-tab)" : "transparent"}`,
                     transition: "color .2s, background .2s, border-color .2s",
                     animation: "cpt-tab-in .34s ease both",
                   }}
@@ -356,30 +351,49 @@ export default function TerminalDemo() {
 
           {/* Panes */}
           <div
-            className="flex gap-px h-[248px] sm:h-[300px] lg:h-[336px]"
-            style={{ background: "var(--color-border)" }}
+            className="flex gap-2 p-2 h-[248px] sm:h-[300px] lg:h-[336px]"
+            style={{ background: "#1a1a1a" }}
           >
             {v.panes.map((p, i) => {
               const on = i === v.active;
               return (
                 <div
                   key={p.id}
-                  className="flex-1 min-w-0 flex flex-col"
+                  className="relative flex-1 min-w-0 flex flex-col rounded-lg overflow-hidden"
                   style={{
                     background: "#0a0a0d",
-                    outline: `1px solid ${on ? "var(--color-accent)" : "transparent"}`,
+                    // The product outlines the focused pane in orange and the rest in grey.
+                    outline: `1px solid ${on ? "#eb832a" : "#3c3c3c"}`,
                     outlineOffset: "-1px",
                     animation: "cpt-pane-in .42s ease both",
                   }}
                 >
                   <div
-                    className="flex items-center justify-between px-2.5 h-6 text-[10.5px] shrink-0 border-b"
-                    style={{ background: "#16161c", borderColor: "var(--color-border)", color: "var(--color-muted)" }}
+                    className="flex items-center justify-between gap-2 px-2.5 h-6 text-[10.5px] shrink-0"
+                    style={{ background: "#1c1c1c", color: "var(--color-muted)" }}
                   >
-                    <span className="truncate">
-                      {HOST}: {CWD} <span style={{ opacity: 0.45 }}>&#10005;</span>
+                    <span className="flex items-center gap-1.5 min-w-0">
+                      <span
+                        className="truncate px-1"
+                        style={{
+                          color: on ? "var(--color-foreground)" : "var(--color-muted)",
+                          // WidgetTabBar.cpp — "Active: blue top accent".
+                          borderTop: `2px solid ${on ? "var(--color-pane-tab)" : "transparent"}`,
+                        }}
+                      >
+                        Terminal {i + 1} <span style={{ opacity: 0.45 }}>&#10005;</span>
+                      </span>
+                      <span style={{ opacity: 0.45 }}>+</span>
                     </span>
-                    <span style={{ opacity: 0.45 }}>+</span>
+                    {/* Pin (Ctrl+Shift+Alt+P) and maximise, as they sit in the product. */}
+                    <span className="flex items-center gap-2 shrink-0" style={{ opacity: 0.5 }}>
+                      <svg className="w-2.5 h-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" d="M12 17v5M9 3h6l-1 6 3 3H7l3-3-1-6z" />
+                      </svg>
+                      <svg className="w-2.5 h-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                        <rect x="4" y="4" width="16" height="16" rx="1.5" />
+                      </svg>
+                    </span>
                   </div>
                   <div
                     className="flex items-center gap-1.5 px-2.5 h-5 text-[10.5px] shrink-0"
@@ -420,6 +434,25 @@ export default function TerminalDemo() {
                       )}
                     </div>
                   </div>
+
+                  {/*
+                   * TerminalWidget::renderAiOverlay draws this in the top-right of the pane that
+                   * is running the tool — orange for Claude, blue for Copilot. It is not a
+                   * status-bar item, and there is no token counter anywhere in the product.
+                   */}
+                  {on && v.ai && (
+                    <span
+                      className="absolute top-8 right-2 flex items-center gap-1.5 px-2 py-1 rounded text-[10px]"
+                      style={{
+                        background: "rgba(180,100,45,0.78)",
+                        color: "#fff",
+                        animation: "cpt-pane-in .3s ease both",
+                      }}
+                    >
+                      <span style={{ animation: "cpt-pulse 1.4s ease-in-out infinite" }}>&#9679;</span>
+                      {v.ai}
+                    </span>
+                  )}
                 </div>
               );
             })}
@@ -435,14 +468,12 @@ export default function TerminalDemo() {
               <span style={{ opacity: 0.4 }}>|</span> Widgets: {v.panes.length}
             </span>
             <span className="flex items-center gap-3 shrink-0">
-              {v.ai && (
-                <span className="flex items-center gap-1.5" style={{ color: "var(--color-accent)" }}>
-                  <span style={{ animation: "cpt-pulse 1.4s ease-in-out infinite" }}>&#9679;</span>
-                  <span className="hidden sm:inline">{v.ai}</span>
-                  <span style={{ opacity: 0.7 }}>{(v.tokens / 1000).toFixed(1)}k</span>
-                </span>
-              )}
               <span>100%</span>
+              {/*
+               * The product's status bar ends with a live key-state indicator — it echoes the
+               * modifiers and letter currently held. Empty brackets when nothing is pressed.
+               */}
+              <span style={{ opacity: 0.55 }}>[{s.keys ? s.keys.join("+") : ""}]</span>
             </span>
           </div>
         </div>

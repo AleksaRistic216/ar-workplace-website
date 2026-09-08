@@ -10,6 +10,14 @@
   --color-accent: #e07040;
   --color-accent-dim: rgba(224, 112, 64, 0.12);
   --color-blue: #4d9de0;
+  /*
+   * The two tab accents the product actually draws, sampled from a real capture
+   * (scripts/capture-product.sh). Used by TerminalDemo so the hero's chrome matches the app:
+   * ViewManager.cpp — "Active: red top accent" on a view tab;
+   * WidgetTabBar.cpp — "Active: blue top accent" on a pane tab.
+   */
+  --color-view-tab: #b55555;
+  --color-pane-tab: #4d9de0;
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }

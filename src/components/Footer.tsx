@@ -1,14 +1,13 @@
 import Image from "next/image";
 import Link from "next/link";
-import HashLink from "@/components/HashLink";
 import { ISSUES_URL, RELEASES_URL } from "@/lib/release";
 
-type Kind = "route" | "hash" | "external";
+type Kind = "route" | "external";
 
 const links: { label: string; href: string; kind: Kind }[] = [
   { label: "Download", href: "/download", kind: "route" },
-  { label: "Pricing", href: "/#pricing", kind: "hash" },
-  { label: "FAQ", href: "/#faq", kind: "hash" },
+  { label: "Pricing", href: "/pricing", kind: "route" },
+  { label: "FAQ", href: "/faq", kind: "route" },
   { label: "Releases", href: RELEASES_URL, kind: "external" },
   { label: "Report a bug", href: ISSUES_URL, kind: "external" },
 ];
@@ -41,13 +40,6 @@ export default function Footer() {
                 >
                   {label}
                 </a>
-              );
-            }
-            if (kind === "hash") {
-              return (
-                <HashLink key={label} href={href} className={linkClass} style={linkStyle}>
-                  {label}
-                </HashLink>
               );
             }
             return (

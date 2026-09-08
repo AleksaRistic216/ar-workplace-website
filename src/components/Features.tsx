@@ -7,7 +7,7 @@ const features = [
       </svg>
     ),
     title: "Multi-View Workspace",
-    body: "Named tabs, each with an independent dock layout. Inactive views suspend to near-zero resource usage.",
+    body: "Named tabs, each with an independent dock layout. Reorder them by dragging, number them if you like, and inactive views suspend to near-zero resource usage.",
   },
   {
     icon: (
@@ -39,7 +39,29 @@ const features = [
       </svg>
     ),
     title: "AI Tool Detection",
-    body: "Live status badge when Claude Code or Copilot is running - tool name, spinner, token count. Zero config.",
+    body: "When Claude Code or Copilot starts in a pane, that pane gets a live badge naming the tool and echoing its status line. A working spinner appears on the view's own tab too, so you can see which workspace is busy from anywhere. Zero config.",
+  },
+  {
+    icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+          d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+      </svg>
+    ),
+    title: "AI Inventory",
+    body: "A panel listing the skills, agents, commands, hooks, MCP servers and instruction files available in the repository you are working in - each tagged project, user or plugin. It follows the focused terminal, so it re-scans when you cd somewhere else.",
+  },
+  {
+    icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+          d="M17.657 16.657L13.414 20.9a2 2 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+          d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+      </svg>
+    ),
+    title: "Pinned Panes",
+    body: "Pin a pane and it keeps the size and the slot you gave it. Redistribute the layout, close a neighbour, or open another terminal - the narrow file tree or log pane stays exactly as you set it, and the rest share out what is left.",
   },
   {
     icon: (
@@ -49,7 +71,7 @@ const features = [
       </svg>
     ),
     title: "Keyboard Navigation",
-    body: "Focus, move, and resize any panel without touching the mouse. Navigate views, open terminals, split panes - every action has a binding.",
+    body: "Focus, move, and resize any panel without touching the mouse. Navigate views, open terminals, pin a pane, jump between tabs - every action has a binding, and all of them rebind.",
   },
   {
     icon: (
@@ -72,12 +94,12 @@ export default function Features() {
           <p className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: "var(--color-accent)" }}>
             Features
           </p>
-          <h2
+          <h1
             className="text-3xl md:text-4xl font-bold tracking-tight"
             style={{ color: "var(--color-foreground)" }}
           >
             Everything in one window
-          </h2>
+          </h1>
           <p className="mt-4 max-w-xl mx-auto text-base" style={{ color: "var(--color-muted)" }}>
             Arrange terminals and tools exactly how you want. Navigate everything from the keyboard.
             Stays fast no matter how much you have open.
