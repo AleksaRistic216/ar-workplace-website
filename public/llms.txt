@@ -44,8 +44,7 @@ subscription on that account to go further. There is no trial and no free tier.
 
 ## Pages
 
-- [Homepage](/) — Overview: the pitch, a live demo of a session, and why CPT exists
-- [Features](/features) — The full feature grid
+- [Homepage](/) — Overview: the pitch, a live demo of a session, why CPT exists, and the feature grid
 - [Cross-Platform](/cross-platform) — Platform quirks CPT resolves, and the keyboard shortcut table
 - [Pricing](/pricing) — Plans and checkout
 - [FAQ](/faq) — Billing, platforms, updates, refunds and support

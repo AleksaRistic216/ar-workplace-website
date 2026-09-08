@@ -137,3 +137,41 @@ body {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* The AI Inventory's scan indicator, mirroring the spinner the widget draws while rescanning. */
+@keyframes cpt-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/*
+ * The demo's simulated cursor.
+ *
+ * `left`, `top` and `opacity` live here rather than in the component's `style` prop on purpose:
+ * they are written imperatively by the effect that measures the target, and anything React holds
+ * in `style` gets reset to the prop's value on the next render — which silently undid the
+ * positioning and left the cursor invisible at the frame's origin.
+ */
+.cpt-cursor {
+  left: 0;
+  top: 0;
+  opacity: 0;
+  transition: left 0.42s ease, top 0.42s ease;
+}
+
+.cpt-cursor[data-placed="1"] {
+  opacity: 1;
+}
+
+/* The click ripple on the demo's simulated cursor. */
+@keyframes cpt-click {
+  from {
+    transform: scale(0.35);
+    opacity: 0.9;
+  }
+  to {
+    transform: scale(1.5);
+    opacity: 0;
+  }
+}

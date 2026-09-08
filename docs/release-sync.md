@@ -115,6 +115,102 @@ What this means for a future audit:
   and AiInventory — there is no file browser, and it was being listed as something the money buys.
   Check the paid feature list against `WidgetRegistry` every run.
 
+## Demo: AI Inventory pane — 2026-09-08, fourth pass
+
+The hero demo now docks an AI Inventory pane after Claude Code starts, so the feature the site
+promoted to a Pillar is actually visible in the product shot on the front page. Its look was taken
+from `scripts/capture-product.sh ai_inventory` rather than from the docs: scope stripe plus scope
+badge on every row (blue repo / green user / purple plugin), the group label's first letter
+underlined because that letter is its shortcut, the `Filter... (F)` box and the item count.
+
+Watch on future runs:
+
+- The pane's contents are **fixture data** in `demo-session.ts`, not a real scan. If the widget
+  gains or loses a group, the demo does not follow on its own. The product's six groups are Skills,
+  Agents, Commands, Hooks, MCP Servers, Instructions; the demo shows four of them for height.
+- `count` must equal the rows actually listed. It was wrong (9 vs 8) on the first attempt.
+- Three panes are unreadable on a phone, so below `sm` the first pane is hidden. Any further pane
+  added to the Main view needs that rule revisited.
+
+## Demo split into clips — 2026-09-08, fifth pass
+
+The hero demo was one ~25s linear reel. To see the AI inventory — the feature the site now leads
+with — a visitor had to watch a build compile, a pane split and a Claude session first. The
+features were there and effectively invisible.
+
+It is now three clips with a picker above the frame: **Panes**, **AI tooling**, **Views**. Each is
+a `seed` (applied instantly) plus a short `script` (animated), so a clip opens on a workspace
+already mid-task and makes its point in a couple of seconds. `/features` embeds the AI clip on its
+own via `<TerminalDemo only="ai" />`.
+
+A follow-up fixed the switch itself: the AI and Views clips had been seeded identically, so picking
+one after the other changed nothing on screen and the picker read as broken. Views now seeds with
+its second view already in the tab bar and a plain second terminal instead of Claude, and panes and
+tabs are keyed by clip id so a switch remounts them and replays the entry animations.
+
+For a future run:
+
+- Judge a clip by **time to its point**, not by total length. If setup takes more than a beat or
+  two, it belongs in the seed.
+- A new clip must **open on a frame that differs from every other clip's opening frame**, not just
+  end on a different one. Tab count, pane count and the status bar are what a visitor reads.
+- **The AI clip now demonstrates retargeting.** Two panes in two checkouts (`~/src/notes-api` and
+  `~/src/cpt`); focusing the other terminal moves the inventory to that repository, via the same
+  spinner-and-`Scanning <dir>...` transition the widget uses, with the old results held on screen.
+  Building it exposed a real bug in the demo: the Claude badge was stored per *view*, so it
+  followed the focus onto a terminal running nothing. The product draws it per *widget*
+  (`renderAiOverlay`), and the demo now does too.
+- **Typing is dead time unless it is the point.** It animates at human speed. The AI clip opened
+  by typing a prompt at Claude, which pushed the AI Inventory — the thing the clip exists to show —
+  several seconds out. The prompt and its output are seeded now, so the clip opens on completed
+  work and animates only the menu and the panel. Measure a clip by when its first visible change
+  happens, not by its total length.
+- **Every result in a clip needs the action that causes it, on screen.** The AI clip had a prompt
+  typed at Claude and then the AI Inventory panel appearing by itself, which implied typing at an
+  agent spawns the widget. It does not: `Widgets → AI Inventory` is the only way to add it — no
+  shortcut, no command (`TitleBar.cpp`; `WidgetRegistry` registers only `Terminal` and
+  `AiInventory`). The clip now opens that menu and picks the item. This is the same class of error
+  as the `Ctrl+Shift+F` "split" caption: the binding existed, the effect was invented. Check
+  causality, not just that each frame is individually accurate.
+- Seeds run through `applyInstant`, the same path as the still frame, so they cannot drift from
+  what animating the same ops would produce.
+- `react-hooks/refs` (eslint-plugin-react-hooks 7.x, newly present in this tree) rejects reading a
+  ref during render, which is how the player used to paint. The render now reads a published
+  snapshot instead. Do not "simplify" that back into a ref read.
+
+## `/features` removed — 2026-09-08
+
+The route created in the split was deleted and the feature grid moved back onto `/`. It had been
+embedding a single demo clip with no picker, so on that page the demo looked like the other clips
+had vanished — a shared component behaving differently on one page is worse than a longer home
+page. The `only` prop that allowed it is gone too, so the demo is identical everywhere.
+
+Consequences worth knowing:
+
+- `Features` had taken an `<h1>` when it was its own page and had to go back to `<h2>`; the home
+  page already has Hero's `<h1>`.
+- `#features` is now the only in-page anchor left in the nav, so that entry uses `HashLink` while
+  the rest are `Link`.
+- `SectionTeasers` lost its Features card, and `/features` is out of the sitemap and `llms.txt`.
+
+## Verification limits found the hard way — 2026-09-08
+
+Two things cost most of a session and will do so again if they are not remembered:
+
+- **`scripts/capture-site.sh` verifies server-rendered output only.** A headless screenshot fires
+  at `load`, before anything that needs React to have hydrated. The demo's simulated cursor is
+  positioned by an effect, so it captured as absent — repeatedly — while working in a browser.
+  Everything verified by capture this session was server-rendered, which is why the limit did not
+  surface until now. Before concluding a feature is broken from a capture, ask whether it needs JS.
+- **The dev server served stale CSS through edits and restarts.** At one point the served rule said
+  `opacity: 1` while the file said `0`, which made a correct fix look broken and a stale diagnostic
+  look live. `npm run build` was always right. Compare the served chunk against the file before
+  editing code.
+
+Also: probes left in the working tree are dangerous. A diagnostic that rendered a single clip
+hid the demo picker, and the user hit it before it was reverted. Revert a probe in the same step
+that captures its result.
+
 ## Notes for the next run
 
 - **Pricing is being changed underneath this.** While the second pass was running, `src/lib/plans.ts`

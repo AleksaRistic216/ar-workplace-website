@@ -1,6 +1,7 @@
 import Navbar from "@/components/Navbar";
 import Hero from "@/components/Hero";
 import Pillars from "@/components/Pillars";
+import Features from "@/components/Features";
 import SectionTeasers from "@/components/SectionTeasers";
 import Footer from "@/components/Footer";
 
@@ -74,6 +75,7 @@ export default function Home() {
       <main>
         <Hero />
         <Pillars />
+        <Features />
         <SectionTeasers />
       </main>
       <Footer />

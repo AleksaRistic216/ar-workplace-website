@@ -94,12 +94,12 @@ export default function Features() {
           <p className="text-xs font-semibold uppercase tracking-widest mb-3" style={{ color: "var(--color-accent)" }}>
             Features
           </p>
-          <h1
+          <h2
             className="text-3xl md:text-4xl font-bold tracking-tight"
             style={{ color: "var(--color-foreground)" }}
           >
             Everything in one window
-          </h1>
+          </h2>
           <p className="mt-4 max-w-xl mx-auto text-base" style={{ color: "var(--color-muted)" }}>
             Arrange terminals and tools exactly how you want. Navigate everything from the keyboard.
             Stays fast no matter how much you have open.
