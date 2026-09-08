@@ -4,10 +4,15 @@ import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import HashLink from "@/components/HashLink";
 
-// Real routes since the landing page was split up; these were "/#features" and friends.
+/*
+ * Mostly real routes since the landing page was split up. Features is the exception: the grid
+ * stayed on the home page, so it is still an in-page anchor and needs HashLink to scroll rather
+ * than a Link, which the App Router treats as navigating to the page you are already on.
+ */
 const links = [
-  { label: "Features", href: "/features" },
+  { label: "Features", href: "/#features", hash: true },
   { label: "Cross-Platform", href: "/cross-platform" },
   { label: "Pricing", href: "/pricing" },
   { label: "FAQ", href: "/faq" },
@@ -43,20 +48,23 @@ export default function Navbar() {
 
         {/* Desktop nav */}
         <div className="hidden md:flex items-center gap-7">
-          {links.map(({ label, href }) => {
-            const active = pathname === href;
-            return (
+          {links.map(({ label, href, hash }) =>
+            hash ? (
+              <HashLink key={label} href={href} className="text-sm cpt-quiet" style={{ color: "var(--color-muted)" }}>
+                {label}
+              </HashLink>
+            ) : (
               <Link
                 key={label}
                 href={href}
-                aria-current={active ? "page" : undefined}
+                aria-current={pathname === href ? "page" : undefined}
                 className="text-sm cpt-quiet"
-                style={{ color: active ? "var(--color-foreground)" : "var(--color-muted)" }}
+                style={{ color: pathname === href ? "var(--color-foreground)" : "var(--color-muted)" }}
               >
                 {label}
               </Link>
-            );
-          })}
+            )
+          )}
           <Link href="/download" className="text-sm px-4 py-1.5 rounded-md font-medium cpt-accent-btn">
             Download
           </Link>
@@ -86,21 +94,30 @@ export default function Navbar() {
           className="md:hidden border-t px-6 py-4 flex flex-col gap-4"
           style={{ borderColor: "var(--color-border)", background: "var(--color-background)" }}
         >
-          {links.map(({ label, href }) => {
-            const active = pathname === href;
-            return (
+          {links.map(({ label, href, hash }) =>
+            hash ? (
+              <HashLink
+                key={label}
+                href={href}
+                className="text-sm cpt-quiet"
+                style={{ color: "var(--color-muted)" }}
+                onNavigate={() => setMenuOpen(false)}
+              >
+                {label}
+              </HashLink>
+            ) : (
               <Link
                 key={label}
                 href={href}
-                aria-current={active ? "page" : undefined}
+                aria-current={pathname === href ? "page" : undefined}
                 className="text-sm cpt-quiet"
-                style={{ color: active ? "var(--color-foreground)" : "var(--color-muted)" }}
+                style={{ color: pathname === href ? "var(--color-foreground)" : "var(--color-muted)" }}
                 onClick={() => setMenuOpen(false)}
               >
                 {label}
               </Link>
-            );
-          })}
+            )
+          )}
           <Link
             href="/download"
             className="text-sm px-4 py-2 rounded-md text-center font-medium cpt-accent-btn"

@@ -3,20 +3,14 @@ import Link from "next/link";
 /*
  * The bridge from the home page to the four pages the landing page used to be.
  *
- * Each card carries the `id` its section used to own — `#features`, `#cross-platform`, `#pricing`,
- * `#faq`. Those anchors were the whole public URL surface of the old single-page site, and they
- * live in links people have already shared. A hash cannot be redirected server-side (it never
+ * Each card carries the `id` its section used to own — `#cross-platform`, `#pricing`, `#faq`.
+ * Those anchors were the whole public URL surface of the old single-page site, and they live in
+ * links people have already shared. (`#features` is not here: the feature grid is on this page,
+ * and carries that id itself.) A hash cannot be redirected server-side (it never
  * reaches the server), so the only way to honour an old `/#pricing` is to keep something at that
  * id: the visitor lands on the card for the thing they asked for, one click from the page itself.
  */
 const teasers = [
-  {
-    id: "features",
-    href: "/features",
-    eyebrow: "Features",
-    title: "Everything in one window",
-    body: "A multi-view workspace, a full terminal emulator, the AI workflow pipeline, and an inventory of the AI tooling your repository actually has.",
-  },
   {
     id: "cross-platform",
     href: "/cross-platform",

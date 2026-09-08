@@ -4,8 +4,7 @@
 
 | Route | File | Notes |
 |---|---|---|
-| `/` | `src/app/page.tsx` | Hero, pillars, and teasers into the four pages below |
-| `/features` | `src/app/features/page.tsx` | The feature grid |
+| `/` | `src/app/page.tsx` | Hero, pillars, the feature grid, and teasers into the pages below |
 | `/cross-platform` | `src/app/cross-platform/page.tsx` | Platform quirks and the shortcut table |
 | `/pricing` | `src/app/pricing/page.tsx` | Plans and checkout |
 | `/faq` | `src/app/faq/page.tsx` | FAQ accordion, `FAQPage` JSON-LD |
@@ -24,9 +23,9 @@ layout.tsx                    ← metadata, font vars, global CSS
 │   ├── Hero                  ← headline, CTA pair, TerminalDemo
 │   │   └── TerminalDemo      ← the replaying session (client)
 │   ├── Pillars               ← 4 claims, each with a spec tag
-│   ├── SectionTeasers        ← 4 cards into the pages below; carries the legacy anchor ids
+│   ├── Features              ← 8 feature cards, id="features"
+│   ├── SectionTeasers        ← 3 cards into the pages below; carries the legacy anchor ids
 │   └── Footer
-├── features/page.tsx         ← Features (8 cards)
 ├── cross-platform/page.tsx   ← CrossPlatform (quirks + folded shortcut table)
 ├── pricing/page.tsx          ← Pricing (plans + checkout modal, client)
 ├── faq/page.tsx              ← FAQ (accordion + FAQPage JSON-LD)
@@ -37,9 +36,17 @@ Every page is `Navbar` + content + `Footer`. The four split-out pages wrap their
 `<main className="pt-14">` to reserve the fixed header's height; the home page does not, because
 `Hero` already carries a `pt-28` of its own.
 
-`Features`, `CrossPlatform`, `Pricing` and `FAQ` each render their section heading as an `<h1>`,
-because each is now the whole content of its own route. They are used on exactly one page each —
-if one is ever reused, that heading has to become a prop rather than being demoted in place.
+`CrossPlatform`, `Pricing` and `FAQ` each render their section heading as an `<h1>`, because each
+is the whole content of its own route. They are used on exactly one page each — if one is ever
+reused, that heading has to become a prop rather than being demoted in place. `Features` is the
+counter-example: it briefly had its own route, took an `<h1>`, and had to be demoted back to `<h2>`
+when it returned to the home page, which already has Hero's `<h1>`.
+
+**There is no `/features` route.** The grid lives on `/` and `Features` keeps `id="features"`, so
+the nav entry is the one remaining in-page anchor and uses `HashLink`. It was briefly its own page,
+embedding a single demo clip with no picker — which made the demo look, on that page alone, as
+though the other clips had disappeared. A page that shows a different version of a shared component
+is worse than one section more on the home page.
 
 ## Section anchor IDs
 
@@ -71,9 +78,78 @@ itself (same-page `scrollIntoView`, opening the `<details>` first). Its only cal
 PNG screenshots, which at hero size rendered terminal type illegibly — the product's own UI could
 not be read in its own hero.
 
-- **Script** — `src/lib/demo-session.ts` exports `demo`, a list of ops (`type`, `run`, `out`, `key`,
-  `split`, `newview`, `switchview`, `ai`, `tokens`, `caption`, `wait`). Changing what the demo shows
-  means editing that file only.
+- **Clips, not one reel** — `src/lib/demo-session.ts` exports `demos`, each a `{ seed, script }`.
+  The `seed` is applied instantly through `applyInstant`; the `script` animates and loops. Ops are
+  `type`, `run`, `out`, `key`, `split`, `inventory`, `newview`, `switchview`, `ai`, `caption`,
+  `wait`. The same file exports `inventory`, the data the AI Inventory pane lists.
+
+  The demo used to be a single ~25s reel that built its state up from an empty shell: reaching the
+  AI inventory meant sitting through a cargo build, a pane split and a Claude session first. Nobody
+  watches a landing page that long, so the interesting parts were effectively invisible. Each clip
+  now *opens* mid-task and does one thing. **A new clip should be seeded into the state its point
+  needs and then show only that point** — if a clip needs more than a few seconds before it makes
+  sense, its setup belongs in the seed.
+
+  Because seeds go through `applyInstant` — the same path the still frame uses — a seed cannot
+  drift from what the player would have produced by animating the same ops.
+- **Every clip must *open* on a visibly different frame.** Picking a clip whose seed looks like the
+  one already on screen reads as a dead button — the first cut of this had the AI and Views clips
+  seeded identically, so switching between them changed nothing. The three differ in tab count,
+  pane count and status bar: one tab / one pane; one tab / two panes plus the Claude badge; two
+  tabs / two panes and no badge. Check a new clip against the others, not just against itself.
+- **Never make the viewer wait through typing to reach the point.** Typing animates at human
+  speed, so a forty-character prompt costs a second or more before anything happens. If the typing
+  is not itself the thing the clip demonstrates, it belongs in the `seed`, already committed. The
+  AI clip typed a prompt at Claude before opening the inventory; that prompt and its output are now
+  seeded, and the clip's animation is spent only on the menu and the panel. The `panes` clip does
+  still type, but *after* its split has already landed — the test is whether the first visible
+  change comes before or after the keystrokes, not whether typing appears at all.
+- **The simulated cursor.** The `pointer` op moves a drawn cursor onto the element tagged
+  `data-ptr={at}` and can flash a click ripple. Positions are **measured** from the DOM in an
+  effect rather than written down, because the frame is a different size at every breakpoint and
+  the menu item it points at does not exist until the menu is open. Two consequences worth keeping:
+  its `left`, `top` and `opacity` live in `.cpt-cursor` in `globals.css`, **not** in the component's
+  `style` prop — anything React holds in `style` is reset to the prop's value on the next render,
+  which silently undid the positioning; and the first placement happens with transitions off, or
+  the cursor's first appearance animates in from the frame's corner.
+- **Show the action that causes the result.** The AI clip used to type a prompt at Claude and then
+  have the AI Inventory panel appear on its own, implying the two were connected. They are not:
+  `Widgets → AI Inventory` in the title bar is the *only* way to add that widget — there is no
+  shortcut and no command for it (`TitleBar.cpp`, and `WidgetRegistry` registers only `Terminal`
+  and `AiInventory`). The clip now opens the menu, highlights the item and picks it. The `menu` op
+  drives that, and `WIDGETS_MENU` in `demo-session.ts` holds the items verbatim from `TitleBar.cpp`.
+  A demo that shows a result without the action that produces it teaches the wrong mental model as
+  surely as a wrong shortcut does.
+- **Panes and view tabs are keyed by clip id.** Pane ids restart at 1 in every clip, so without the
+  prefix React saw the same keys across a switch, kept the DOM and replayed no entry animation —
+  the frame changed with nothing to signal that it had. The prefix forces a remount, so
+  `cpt-pane-in` and `cpt-tab-in` run again and the switch is visible.
+- **The picker** is rendered when there is more than one clip, and every page that shows the demo
+  shows the same one. There was briefly an `only` prop for embedding a single clip; it made the
+  demo differ between pages and read as broken, and it is gone.
+- **Render reads a snapshot, not the ref.** The player mutates `stateRef` dozens of times a second
+  and `repaint()` publishes a shallow copy as state. Reading `stateRef.current` during render is
+  what `react-hooks/refs` rejects, and it is genuinely unsound: a ref holding render-relevant state
+  is invisible to React. The shallow copy keeps the nested arrays' identity, so this costs one
+  object per frame, not a rebuilt session.
+- **The inventory follows the focused terminal.** Panes carry their own `cwd`, `inventories` in
+  `demo-session.ts` is keyed by repository, and the `focus` op retargets the panel when the newly
+  focused terminal is in a different checkout. The transition is modelled on the product: the item
+  count is replaced by a spinner and `Scanning <dir>...` while **the previous results stay on
+  screen**, then `scanned` commits the new ones. CPT holds that indicator for `kMinIndicatorMs`
+  (450 ms) specifically so retargeting is visible rather than flashing past, so the clip leaves it
+  up a little longer still. A user-scope entry (`dataviz`) appears in both repositories on purpose —
+  `~/.claude` applies everywhere, which is what the scope badges exist to show.
+- **The AI badge belongs to a pane, not a view.** `TerminalWidget::renderAiOverlay` draws it in the
+  widget running the tool, so it stays put when focus moves elsewhere. Holding it on the view made
+  the badge follow the focus onto a terminal that was running nothing.
+- **Panes have a `kind`** — `"term"` or `"inventory"`. An inventory pane renders `InventoryPanel`
+  instead of scrollback, skips the Workflows strip, and never carries the AI badge. Its colours and
+  layout were taken from a real capture (`scripts/capture-product.sh ai_inventory`): a scope stripe
+  and a scope badge on every row, blue for the repo, green for `~/.claude`, purple for a plugin,
+  and the group label's first letter underlined because that letter is its shortcut.
+- **Three panes do not fit a phone.** Below `sm` the first pane is hidden once a third appears, so a
+  narrow screen keeps the pane running Claude and the inventory rather than three unreadable slivers.
 - **Only real bindings, doing the real thing.** Every shortcut shown in a `key` op must exist in
   `shortcutGroups` in `CrossPlatform.tsx`, **and the caption must describe what that binding
   actually does**. Membership alone is not enough: the demo shipped for months pressing
@@ -270,6 +346,20 @@ longer looks like that. Two scripts close that gap; both work with only Python 3
 (`tests/screenshot/tests/*.sh`), maintained alongside the features they capture, and
 `capture-product.sh` runs them unmodified — `--list` shows them. It supplies a `convert` shim
 backed by `bmp2png.py` so those scripts run without ImageMagick installed.
+
+**`capture-site.sh` only proves what the server rendered.** A headless screenshot fires at the
+`load` event, and nothing that depends on React having hydrated is reliably in the picture — the
+demo player, and anything positioned by an effect, such as the simulated cursor. That is fine for
+most of this site, because the demo's still frame is server-rendered, but it means a capture can
+show a JS-driven feature as absent when it works perfectly in a browser. Do not conclude a feature
+is broken from a capture alone; check whether it needs JS first. Delaying the `load` event with a
+slow stylesheet was tried and did not help.
+
+**The dev server can serve stale CSS.** Turbopack has been observed serving an old `globals.css`
+chunk through edits and even restarts — at one point returning `opacity: 1` for a rule the file
+declared as `0`, which made a correct change look broken and an earlier diagnostic look correct.
+`npm run build` output is trustworthy; when a CSS change appears not to apply, compare the served
+chunk against the file before changing the code, and clear `.next/dev` and restart.
 
 Two traps, both of which make a working page look broken:
 
