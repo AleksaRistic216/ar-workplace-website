@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import HashLink from "@/components/HashLink";
+import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { RELEASES_URL, formatSize, getLatestRelease, type ReleaseAsset } from "@/lib/release";
@@ -9,7 +9,7 @@ import { RELEASES_URL, formatSize, getLatestRelease, type ReleaseAsset } from "@
 export const revalidate = 600;
 
 export const metadata: Metadata = {
-  title: "Download Cross Platform Terminal — Linux, Windows & macOS",
+  title: "Download Cross Platform Terminal — Linux & Windows",
   description:
     "Download the latest Cross Platform Terminal build. No installer: extract the archive and run it. Linux AppImage and tar.gz, Windows ZIP.",
 };
@@ -172,12 +172,12 @@ export default async function DownloadPage() {
             className="mb-10 rounded-xl border px-5 py-4 text-sm text-center"
             style={{ borderColor: "var(--color-border)", background: "var(--color-surface)", color: "var(--color-muted)" }}
           >
-            <span style={{ color: "var(--color-foreground)" }}>CPT needs a licence to run.</span> Grab
+            <span style={{ color: "var(--color-foreground)" }}>CPT needs a subscription to run.</span> Grab
             the build for your platform below — there is no installer, just extract and run — then sign
             in when the app asks.{" "}
-            <HashLink href="/#pricing" className="font-medium" style={{ color: "var(--color-accent)" }}>
-              Don&apos;t have a licence? €24, once.
-            </HashLink>
+            <Link href="/pricing" className="font-medium" style={{ color: "var(--color-accent)" }}>
+              Not subscribed yet? €7.49/month.
+            </Link>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

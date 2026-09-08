@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import UpdateFootnote from "@/components/UpdateFootnote";
+import { DEFAULT_PLAN, formatDate, PLANS, type PlanId } from "@/lib/plans";
 
 /** `footnote` hangs the update-scope asterisk off a bullet — see `UpdateFootnote`. */
 const included: { label: string; footnote?: boolean }[] = [
@@ -11,46 +12,67 @@ const included: { label: string; footnote?: boolean }[] = [
   { label: "Unlimited views & dockable widgets" },
   { label: "AI Workflow Pipeline (Claude Code & Copilot)" },
   { label: "Automatic AI tool detection & status badge" },
-  { label: "File browser widget" },
+  { label: "AI inventory of the current repository" },
   { label: "In-app auto-update" },
   { label: "Linux (AppImage + tar.gz) and Windows builds" },
-  { label: "Every future update, at no extra cost", footnote: true },
+  { label: "Every update while you are subscribed", footnote: true },
 ];
 
-type ModalState = "closed" | "email" | "payment" | "success" | "alreadyOwned";
+type ModalState = "closed" | "email" | "payment" | "success" | "perpetual";
 
 /** How long to keep asking whether the webhook has landed before telling the buyer to sit tight. */
 const POLL_INTERVAL_MS = 4000;
 const POLL_TIMEOUT_MS = 20 * 60_000;
 
+function euro(amount: number): string {
+  return `€${amount.toFixed(2)}`;
+}
+
 export default function Pricing() {
+  const [plan, setPlan] = useState<PlanId>(DEFAULT_PLAN);
   const [modal, setModal] = useState<ModalState>("closed");
   const [email, setEmail] = useState("");
   const [discountCode, setDiscountCode] = useState("");
   const [discountPercent, setDiscountPercent] = useState(0);
-  const [finalAmount, setFinalAmount] = useState(8);
+  const [finalAmount, setFinalAmount] = useState(PLANS[DEFAULT_PLAN].amount);
   const [embedUrl, setEmbedUrl] = useState("");
   const [portalUrl, setPortalUrl] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [pollTimedOut, setPollTimedOut] = useState(false);
 
+  /*
+   * What this particular payment is buying. `newExpiresAt` is the licence date the invoice was
+   * created for; the poll below hands it back so a *renewal* is only called done once the licence
+   * reaches it. Without that, an existing subscriber would see a success screen the instant the
+   * first poll found the licence they already had.
+   */
+  const [renewal, setRenewal] = useState<boolean | null>(null);
+  const [currentEndsAt, setCurrentEndsAt] = useState<string | null>(null);
+  const [newExpiresAt, setNewExpiresAt] = useState<string | null>(null);
+  const [newEndsAt, setNewEndsAt] = useState<string | null>(null);
+
   const dialogRef = useRef<HTMLDivElement>(null);
   const restoreFocusTo = useRef<HTMLElement | null>(null);
 
   const open = modal !== "closed";
+  const selected = PLANS[plan];
 
   const closeModal = useCallback(() => {
     setModal("closed");
     setEmail("");
     setDiscountCode("");
     setDiscountPercent(0);
-    setFinalAmount(24);
+    setFinalAmount(PLANS[plan].amount);
     setEmbedUrl("");
     setPortalUrl("");
     setError("");
     setPollTimedOut(false);
-  }, []);
+    setRenewal(null);
+    setCurrentEndsAt(null);
+    setNewExpiresAt(null);
+    setNewEndsAt(null);
+  }, [plan]);
 
   // Escape closes, Tab stays inside, and the page behind stops scrolling.
   useEffect(() => {
@@ -98,7 +120,7 @@ export default function Pricing() {
 
   /*
    * While the payment widget is up, ask our own side whether provisioning has finished. The licence
-   * is granted last, so this flips true only once the account exists and the email has gone out —
+   * is dated last, so this flips true only once the account exists and the email has gone out —
    * which is the only honest basis for showing a success screen.
    */
   useEffect(() => {
@@ -119,10 +141,11 @@ export default function Pricing() {
         const res = await fetch("/api/licence-status", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email }),
+          body: JSON.stringify({ email, notBefore: newExpiresAt }),
         });
         const data = await res.json();
         if (!cancelled && data.provisioned) {
+          if (data.endsAt) setNewEndsAt(data.endsAt);
           setModal("success");
           return;
         }
@@ -138,7 +161,7 @@ export default function Pricing() {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [modal, email]);
+  }, [modal, email, newExpiresAt]);
 
   async function handleProceed() {
     if (!email.includes("@")) {
@@ -151,22 +174,27 @@ export default function Pricing() {
       const res = await fetch("/api/create-invoice", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, discountCode: discountCode.trim() || undefined }),
+        body: JSON.stringify({ email, plan, discountCode: discountCode.trim() || undefined }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Failed to create invoice");
-      if (data.alreadyOwned) {
+      if (!res.ok) throw new Error(data.error ?? "Failed to start the payment");
+      if (data.perpetual) {
         setPortalUrl(data.portalUrl);
-        setModal("alreadyOwned");
+        setModal("perpetual");
         return;
       }
       if (data.free) {
+        setNewEndsAt(data.newEndsAt ?? null);
         setModal("success");
         return;
       }
       setEmbedUrl(data.embedUrl);
       setDiscountPercent(data.discountPercent);
       setFinalAmount(data.finalAmount);
+      setRenewal(data.renewal);
+      setCurrentEndsAt(data.currentEndsAt);
+      setNewExpiresAt(data.newExpiresAt);
+      setNewEndsAt(data.newEndsAt);
       setModal("payment");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong.");
@@ -176,22 +204,60 @@ export default function Pricing() {
   }
 
   return (
-    <section id="pricing" className="py-24 px-6 border-t" style={{ borderColor: "var(--color-border)" }}>
+    <section id="pricing" className="py-24 px-6">
       <div className="max-w-6xl mx-auto">
         {/* Header */}
-        <div className="text-center mb-14">
+        <div className="text-center mb-10">
           <p
             className="text-xs font-semibold uppercase tracking-widest mb-3"
             style={{ color: "var(--color-accent)" }}
           >
             Pricing
           </p>
-          <h2 className="text-3xl md:text-4xl font-bold tracking-tight" style={{ color: "var(--color-foreground)" }}>
-            Twenty-four euros. Once.
-          </h2>
+          <h1 className="text-3xl md:text-4xl font-bold tracking-tight" style={{ color: "var(--color-foreground)" }}>
+            €7.49 a month.
+          </h1>
           <p className="mt-4 text-base" style={{ color: "var(--color-muted)" }}>
-            No subscription, no renewal, no upsell. Buy the licence and it is yours.
+            Pay for a month or a year at a time. Nothing renews on its own, and there is nothing to
+            cancel — when you stop paying, it stops.
           </p>
+        </div>
+
+        {/* Plan toggle */}
+        <div className="flex justify-center mb-10">
+          <div
+            className="inline-flex p-1 rounded-xl border"
+            style={{ background: "var(--color-surface)", borderColor: "var(--color-border)" }}
+            role="group"
+            aria-label="Billing period"
+          >
+            {(Object.keys(PLANS) as PlanId[]).map((id) => {
+              const isActive = plan === id;
+              return (
+                <button
+                  key={id}
+                  onClick={() => setPlan(id)}
+                  aria-pressed={isActive}
+                  className="px-5 py-2 rounded-lg text-sm font-semibold transition-colors cursor-pointer"
+                  style={
+                    isActive
+                      ? { background: "var(--color-accent)", color: "#14100e" }
+                      : { color: "var(--color-muted)" }
+                  }
+                >
+                  {PLANS[id].label}
+                  {PLANS[id].savingPercent > 0 && (
+                    <span
+                      className="ml-2 text-xs font-medium"
+                      style={{ color: isActive ? "#14100e" : "var(--color-accent)" }}
+                    >
+                      −{PLANS[id].savingPercent}%
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         {/* Pricing card */}
@@ -221,20 +287,31 @@ export default function Pricing() {
                   className="text-xs px-2.5 py-1 rounded-full font-medium shrink-0"
                   style={{ background: "var(--color-accent-dim)", color: "var(--color-accent)" }}
                 >
-                  Lifetime licence
+                  Subscription
                 </span>
               </div>
 
               <div className="mt-6 flex items-end gap-2">
                 <span className="text-5xl font-bold tracking-tight" style={{ color: "var(--color-foreground)" }}>
-                  €24
+                  {euro(selected.amount)}
                 </span>
                 <span className="text-base mb-1.5" style={{ color: "var(--color-muted)" }}>
-                  one-time
+                  {plan === "yearly" ? "per year" : "per month"}
                 </span>
               </div>
+
               <p className="mt-2 text-xs" style={{ color: "var(--color-muted)" }}>
-                The licence never expires. There is nothing to cancel.
+                {plan === "yearly" ? (
+                  <>
+                    Works out at {euro(selected.perMonth)} a month — {selected.savingPercent}% off the
+                    monthly price, and one crypto payment a year instead of twelve.
+                  </>
+                ) : (
+                  <>
+                    Billed one month at a time. The yearly plan is {PLANS.yearly.savingPercent}% cheaper
+                    if you would rather not pay every month.
+                  </>
+                )}
               </p>
             </div>
 
@@ -266,10 +343,13 @@ export default function Pricing() {
                 onClick={() => setModal("email")}
                 className="block w-full text-center py-3 rounded-lg font-semibold text-sm cursor-pointer cpt-accent-btn"
               >
-                Buy a licence
+                Subscribe — {euro(selected.amount)}
               </button>
               <p className="mt-3 text-center text-xs" style={{ color: "var(--color-muted)" }}>
                 Crypto payment via NOWPayments · sign-in details emailed to you
+              </p>
+              <p className="mt-1.5 text-center text-xs" style={{ color: "var(--color-muted)", opacity: 0.8 }}>
+                Already subscribed? Paying again extends your current period.
               </p>
               <p className="mt-1.5 text-center text-xs" style={{ color: "var(--color-muted)", opacity: 0.8 }}>
                 All sales are final — no refunds.
@@ -294,7 +374,7 @@ export default function Pricing() {
               ref={dialogRef}
               role="dialog"
               aria-modal="true"
-              aria-label="Buy a Cross Platform Terminal licence"
+              aria-label="Subscribe to Cross Platform Terminal"
               // The NOWPayments widget is authored at 410px; anything narrower squeezes it.
               className={modal === "payment" ? "w-full max-w-[410px]" : "w-full max-w-sm"}
             >
@@ -303,10 +383,12 @@ export default function Pricing() {
                   <CloseButton onClick={closeModal} />
 
                   <h3 className="text-lg font-semibold mb-1" style={{ color: "var(--color-foreground)" }}>
-                    Where should we send your licence?
+                    Where should we send your sign-in?
                   </h3>
                   <p className="text-sm mb-5" style={{ color: "var(--color-muted)" }}>
-                    Your sign-in details go to this address once the payment confirms.
+                    {euro(selected.amount)} for {plan === "yearly" ? "a year" : "a month"}. If this
+                    address is already subscribed, the new period is added on to the end of the
+                    current one.
                   </p>
 
                   <label className="sr-only" htmlFor="cpt-email">
@@ -351,8 +433,9 @@ export default function Pricing() {
                   />
 
                   <p className="text-xs mb-4 leading-relaxed" style={{ color: "var(--color-muted)" }}>
-                    Crypto payments cannot be reversed, so this purchase is final and cannot be
-                    refunded.
+                    Crypto payments cannot be reversed, so this payment is final and cannot be
+                    refunded. Nothing is stored to charge you again — the next period is only ever
+                    something you choose to buy.
                   </p>
 
                   {error && (
@@ -371,15 +454,16 @@ export default function Pricing() {
                 </div>
               )}
 
-              {modal === "alreadyOwned" && (
+              {modal === "perpetual" && (
                 <div className="relative rounded-2xl p-8 text-center" style={{ background: "var(--color-surface)" }}>
                   <h3 className="text-lg font-semibold mb-2" style={{ color: "var(--color-foreground)" }}>
-                    You already have a licence
+                    You already have a lifetime licence
                   </h3>
                   <p className="text-sm mb-6" style={{ color: "var(--color-muted)" }}>
-                    <strong style={{ color: "var(--color-foreground)" }}>{email}</strong> already holds a Cross
-                    Platform Terminal licence, and it never expires — so there is nothing more to buy. Sign in from
-                    the app with the password from your original email, or manage your account in the portal.
+                    <strong style={{ color: "var(--color-foreground)" }}>{email}</strong> holds one of the
+                    one-time licences sold before CPT moved to a subscription. It never expires and we are
+                    not taking it away — there is nothing here for you to buy. Sign in from the app as you
+                    always have, or manage your account in the portal.
                   </p>
                   <a
                     href={portalUrl}
@@ -413,13 +497,32 @@ export default function Pricing() {
                     </svg>
                   </div>
                   <h3 className="text-lg font-semibold mb-2" style={{ color: "var(--color-foreground)" }}>
-                    Your licence is ready
+                    {renewal ? "Subscription extended" : "You're subscribed"}
                   </h3>
-                  <p className="text-sm mb-6" style={{ color: "var(--color-muted)" }}>
-                    We&apos;ve sent your sign-in details to{" "}
-                    <strong style={{ color: "var(--color-foreground)" }}>{email}</strong>. Download the app, open it,
-                    and sign in when prompted.
+                  <p className="text-sm mb-2" style={{ color: "var(--color-muted)" }}>
+                    {renewal ? (
+                      <>
+                        Your subscription now runs to{" "}
+                        <strong style={{ color: "var(--color-foreground)" }}>
+                          {newEndsAt ? formatDate(new Date(newEndsAt)) : "the new date"}
+                        </strong>
+                        . Nothing to do in the app — it picks the new date up on its next check.
+                      </>
+                    ) : (
+                      <>
+                        We&apos;ve sent your sign-in details to{" "}
+                        <strong style={{ color: "var(--color-foreground)" }}>{email}</strong>. Download the
+                        app, open it, and sign in when prompted.
+                      </>
+                    )}
                   </p>
+                  {!renewal && newEndsAt && (
+                    <p className="text-xs mb-6" style={{ color: "var(--color-muted)" }}>
+                      Your subscription runs to {formatDate(new Date(newEndsAt))}. We&apos;ll email you
+                      before it ends.
+                    </p>
+                  )}
+                  {renewal && <div className="mb-6" />}
                   <Link
                     href="/download"
                     className="block w-full py-2.5 rounded-lg font-semibold text-sm mb-2 cpt-accent-btn"
@@ -434,14 +537,28 @@ export default function Pricing() {
 
               {modal === "payment" && embedUrl && (
                 <div className="w-full">
-                  {discountPercent > 0 && (
-                    <div
-                      className="mb-2 px-4 py-2 rounded-lg text-sm text-center font-medium"
-                      style={{ background: "var(--color-accent-dim)", color: "var(--color-accent)" }}
-                    >
-                      {discountPercent}% off — €{finalAmount.toFixed(2)} one-time
-                    </div>
-                  )}
+                  {/*
+                   * What this payment buys, said before the widget rather than after it. A renewing
+                   * subscriber especially needs to see that their unused time is being kept — the
+                   * new period stacks on the end of the old one rather than restarting today.
+                   */}
+                  <div
+                    className="mb-2 px-4 py-2.5 rounded-lg text-xs text-center leading-relaxed"
+                    style={{ background: "var(--color-accent-dim)", color: "var(--color-accent)" }}
+                  >
+                    {discountPercent > 0 && (
+                      <span className="block font-medium">
+                        {discountPercent}% off — {euro(finalAmount)}
+                      </span>
+                    )}
+                    {renewal && currentEndsAt && newEndsAt ? (
+                      <>
+                        Renewal: {formatDate(new Date(currentEndsAt))} → {formatDate(new Date(newEndsAt))}
+                      </>
+                    ) : (
+                      newEndsAt && <>{PLANS[plan].label} plan — runs to {formatDate(new Date(newEndsAt))}</>
+                    )}
+                  </div>
 
                   <div className="relative rounded-2xl overflow-hidden" style={{ background: "var(--color-surface)" }}>
                     <CloseButton onClick={closeModal} />
@@ -465,8 +582,8 @@ export default function Pricing() {
                   >
                     {pollTimedOut ? (
                       <>
-                        Still waiting on the network. Your payment is not lost — the licence email arrives as soon as
-                        the transaction confirms. You can close this window.
+                        Still waiting on the network. Your payment is not lost — the confirmation email
+                        arrives as soon as the transaction confirms. You can close this window.
                       </>
                     ) : (
                       <span className="flex items-center justify-center gap-2">

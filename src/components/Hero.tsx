@@ -1,14 +1,12 @@
 import Link from "next/link";
 
-import HashLink from "@/components/HashLink";
-
 import TerminalDemo from "@/components/TerminalDemo";
 import UpdateFootnote from "@/components/UpdateFootnote";
 
 const pills = [
   "No installation — extract and run",
   "Fully keyboard-driven",
-  "Linux · Windows · macOS",
+  "Linux · Windows · macOS soon",
 ];
 
 export default function Hero() {
@@ -35,7 +33,7 @@ export default function Hero() {
             }}
           >
             <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" />
-            Available for Linux, Windows &amp; macOS
+            Available for Linux &amp; Windows — macOS in progress
           </span>
         </div>
 
@@ -53,15 +51,15 @@ export default function Hero() {
           className="mt-5 text-center text-base md:text-lg max-w-xl mx-auto leading-relaxed"
           style={{ color: "var(--color-muted)" }}
         >
-          A GPU-accelerated terminal and dockable workspace that behaves identically on Linux,
-          Windows and macOS. Same shortcuts, same layout, same muscle memory.
+          A GPU-accelerated terminal and dockable workspace that behaves identically on Linux and
+          Windows. Same shortcuts, same layout, same muscle memory.
         </p>
 
         {/* CTA */}
         <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
-          <HashLink href="/#pricing" className="px-6 py-3 rounded-lg font-semibold text-sm cpt-accent-btn">
-            Get a licence — €24
-          </HashLink>
+          <Link href="/pricing" className="px-6 py-3 rounded-lg font-semibold text-sm cpt-accent-btn">
+            Subscribe — €7.49/month
+          </Link>
           <Link
             href="/download"
             className="px-6 py-3 rounded-lg font-medium text-sm border cpt-quiet"
@@ -72,8 +70,8 @@ export default function Hero() {
         </div>
 
         <p className="mt-4 text-center text-xs" style={{ color: "var(--color-muted)" }}>
-          CPT needs a licence to run. One payment — it never expires, and every future update is
-          included.
+          CPT needs a subscription to run. €7.49 a month or €67.41 a year, paid a period at a
+          time — nothing auto-renews, and every update is included while you are subscribed.
           <UpdateFootnote />
         </p>
 
