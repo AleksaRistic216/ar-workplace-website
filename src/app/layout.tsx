@@ -23,13 +23,13 @@ export const metadata: Metadata = {
     template: "%s | Cross Platform Terminal",
   },
   description:
-    "A GPU-accelerated terminal and dockable developer workspace that behaves identically on Linux, Windows and macOS. AI workflow integration for Claude Code and GitHub Copilot. One-time \u20ac24 licence.",
+    "A GPU-accelerated terminal and dockable developer workspace that behaves identically on Linux, Windows and macOS. AI workflow integration for Claude Code and GitHub Copilot. \u20ac7.49 a month or \u20ac67.41 a year.",
   openGraph: {
     type: "website",
     siteName: "Cross Platform Terminal",
     title: "One workspace. Every platform.",
     description:
-      "A GPU-accelerated terminal and dockable developer workspace with the same shortcuts and layout on every OS. One-time \u20ac24 licence, no subscription.",
+      "A GPU-accelerated terminal and dockable developer workspace with the same shortcuts and layout on every OS. \u20ac7.49 a month, or \u20ac67.41 a year.",
   },
   twitter: { card: "summary_large_image" },
 };

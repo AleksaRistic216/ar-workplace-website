@@ -15,27 +15,42 @@ const faqs = [
   {
     id: "subscription",
     q: "Is this a subscription?",
-    a: "No. You pay €24 once. The licence is perpetual — it never expires, there is nothing to renew, and every update to the major version you bought is included.",
+    a: "Yes. €7.49 a month, or €67.41 a year — 25% less, and one crypto payment instead of twelve. It is prepaid rather than recurring: nothing is stored to charge you again, so each period is one you choose to buy. There is a 3-day cushion past the end of a period so a renewal still confirming cannot lock you out.",
   },
   {
     id: "updates",
     q: "Which updates are included?",
-    a: "Every minor and patch release of the major version you bought — new features and fixes alike, for as long as that version ships, at no extra cost. If a new major version is ever released it will be a separate product and will need its own licence; there is none planned today, and nothing about it would stop the licence you hold from working.",
+    a: "All of them, for as long as you are subscribed — patches, new features and future major versions alike, at no extra cost. There is no upgrade to buy and no version to be left behind on.",
   },
   {
     id: "trial",
     q: "Can I try it before buying?",
-    a: "No. There is no trial and no free tier — CPT needs a licence from the first launch. What that buys is a single €24 payment rather than an ongoing commitment: the licence is perpetual, so there is no renewal to forget about and nothing to cancel.",
+    a: "No. There is no trial and no free tier — CPT needs a subscription from the first launch. One month at €7.49 is the smallest commitment there is: if it is not for you, do nothing and it ends.",
+  },
+  {
+    id: "cancel",
+    q: "How do I cancel?",
+    a: "You don't — there is nothing to cancel. Nothing is stored that could charge you again, so a subscription ends by you not renewing it. When the period runs out the app stops opening; your account and settings stay where they are if you come back later.",
+  },
+  {
+    id: "renewing",
+    q: "How does renewing work?",
+    a: "We email you 7 days, 3 days and 1 day before your period ends, with a link back here. Paying again adds the new period on to the end of the current one, so renewing early never costs you the time you have already paid for. Crypto cannot be auto-charged, so renewing is always something you do deliberately.",
+  },
+  {
+    id: "lifetime",
+    q: "I bought the €24 lifetime licence. What happens to it?",
+    a: "Nothing. It never expires and we are not converting it to a subscription — it keeps working exactly as it did, updates included. The checkout recognises those accounts and refuses to sell them a subscription they do not need.",
   },
   {
     id: "after-payment",
     q: "What happens after I pay?",
-    a: "We create your account and email your sign-in details to the address you paid with. Open the app and sign in when it asks. If you already have a Limitless Soft account, the licence is added to it and you keep the password you already use.",
+    a: "We create your account and email your sign-in details to the address you paid with, along with the date your subscription runs to. Open the app and sign in when it asks. If you already have a Limitless Soft account, the subscription is added to it and you keep the password you already use.",
   },
   {
     id: "machines",
     q: "Can I use it on more than one machine?",
-    a: "The licence covers your account. To move to another machine, release the current device from the licence dialog in the app and sign in on the new one.",
+    a: "The subscription covers your account. To move to another machine, release the current device from the licence dialog in the app and sign in on the new one.",
   },
   {
     id: "payment",
@@ -55,17 +70,22 @@ const faqs = [
   {
     id: "refunds",
     q: "Do you offer refunds?",
-    a: "No — all sales are final. Crypto payments cannot be reversed once they confirm, so there is no mechanism to send one back. Since there is no trial either, ask anything you need to know before you buy: open an issue on the release repository and you will get an answer.",
+    a: "No — all sales are final, including part-used periods. Crypto payments cannot be reversed once they confirm, so there is no mechanism to send one back. Since there is no trial either, ask anything you need to know before you buy: open an issue on the release repository and you will get an answer. A single month is the cheapest way to find out.",
   },
   {
     id: "password",
     q: "I lost my password.",
-    a: "Reply to the email your licence came in and we will sort it out. You can also manage the account from the customer portal.",
+    a: "Reply to the email your sign-in details came in and we will sort it out. You can also manage the account from the customer portal.",
   },
   {
     id: "bug",
     q: "I found a bug.",
-    a: "Open an issue on the release repository. Reported bugs are fixed and shipped within a day.",
+    a: "Report it from inside the app: Report a Bug collects your description, the environment and the recent log tail, shows you the exact text first, and files the issue for you if you have the GitHub CLI signed in. If you do not, it copies the diagnostics for you to paste into an issue yourself. Reported bugs are fixed and shipped within a day.",
+  },
+  {
+    id: "uninstall",
+    q: "How do I remove it?",
+    a: "Settings → About → Uninstall removes it in one dialog, and an uninstall.sh ships alongside the Linux build for when the app is gone or you would rather use a shell. Both clear the same things — the binary, the desktop entry and the icon — and both offer to keep your settings and stay signed in. Everything lives in your home directory, so no admin rights and no package manager are involved either way.",
   },
 ];
 
@@ -96,12 +116,12 @@ export default function FAQ() {
           >
             FAQ
           </p>
-          <h2
+          <h1
             className="text-3xl md:text-4xl font-bold tracking-tight"
             style={{ color: "var(--color-foreground)" }}
           >
             The things people ask before buying
-          </h2>
+          </h1>
         </div>
 
         <div className="rounded-xl border overflow-hidden" style={{ borderColor: "var(--color-border)" }}>

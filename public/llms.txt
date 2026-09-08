@@ -1,6 +1,6 @@
 # Cross Platform Terminal (CPT)
 
-> A cross-platform terminal and developer workspace that runs identically on Linux, Windows, and macOS. No setup required — extract and run.
+> A cross-platform terminal and developer workspace that runs identically on Linux and Windows, with macOS in progress. No setup required — extract and run.
 
 ## What is CPT?
 
@@ -10,8 +10,10 @@ Cross Platform Terminal (CPT) is a GPU-accelerated terminal emulator and develop
 
 - **GPU-accelerated rendering**: The entire terminal grid renders in a single GPU draw call. Smooth scrolling at any size with no CPU overhead.
 - **Full VT support**: PTY-backed terminal emulator with tabbed sessions and scrollback. Works out of the box with no quirks.
-- **Dockable panels and widgets**: Unlimited views, file browser widget, and a fully configurable layout. Each view keeps its own independent dock layout.
-- **AI Workflow Pipeline**: Native integration with Claude Code and GitHub Copilot. Automatic AI tool detection with a live status badge showing tool name and token count.
+- **Dockable panels and widgets**: Unlimited views and a fully configurable layout, with panes that can be pinned to keep their size. Each view keeps its own independent dock layout.
+- **AI Workflow Pipeline**: Native integration with Claude Code and GitHub Copilot. A pane running one of them gets a live badge naming the tool and echoing its status line, and the view's tab shows a working spinner.
+- **AI Inventory**: A panel listing the skills, agents, commands, hooks, MCP servers and instruction files available in the repository you are working in, each tagged project, user or plugin. It follows the focused terminal's directory.
+- **Pinned panes**: A pinned pane keeps its size and slot when the layout is redistributed or a neighbour closes.
 - **Cross-platform quirks resolution**: Rendering glitches, escape sequence mismatches, and input edge cases are caught and fixed automatically.
 - **1-day bugfix guarantee**: Reported bugs are fixed and shipped within one business day.
 - **In-app auto-update**: Always on the latest version without manual downloads.
@@ -24,19 +26,27 @@ Cross Platform Terminal (CPT) is a GPU-accelerated terminal emulator and develop
 
 ## Licensing
 
-CPT requires a licence to run, from the first launch. The builds are publicly downloadable, but the
-app asks you to sign in the first time you open it, and it needs a licence on that account to go
-further. There is no trial and no free tier.
+CPT requires an active subscription to run, from the first launch. The builds are publicly
+downloadable, but the app asks you to sign in the first time you open it, and it needs a live
+subscription on that account to go further. There is no trial and no free tier.
 
 ## Pricing
 
-- **€8, paid once.** This is not a subscription: the licence is perpetual, never expires, and there is nothing to renew or cancel.
-- All future updates are included at no extra cost.
-- The licence covers one account. Devices can be released and moved from the licence dialog in the app.
+- **€7.49 per month, or €67.41 per year** (25% less than paying monthly).
+- **Prepaid, not recurring.** Crypto cannot be auto-charged, so no payment instrument is stored and nothing renews on its own. Each period is bought deliberately; a subscription ends by not being renewed, and there is nothing to cancel.
+- Renewal reminders go out 7, 3 and 1 days before a period ends. Renewing early stacks the new period on the end of the current one, so unused time is never lost.
+- Access continues for 3 days past the end of a paid period, so a renewal still confirming on-chain cannot lock anyone out.
+- Every update is included while subscribed — patches, features and future major versions alike.
+- The subscription covers one account. Devices can be released and moved from the licence dialog in the app.
 - Payment is by crypto, through NOWPayments. Sign-in details are emailed after the payment confirms.
-- All sales are final. Crypto payments cannot be reversed, so there are no refunds.
+- All sales are final, part-used periods included. Crypto payments cannot be reversed, so there are no refunds.
+- Perpetual €24 licences sold before the switch to a subscription are grandfathered: they never expire and are not converted.
 
 ## Pages
 
-- [Homepage](/) — Overview, features, pricing, and FAQ
+- [Homepage](/) — Overview: the pitch, a live demo of a session, and why CPT exists
+- [Features](/features) — The full feature grid
+- [Cross-Platform](/cross-platform) — Platform quirks CPT resolves, and the keyboard shortcut table
+- [Pricing](/pricing) — Plans and checkout
+- [FAQ](/faq) — Billing, platforms, updates, refunds and support
 - [Download](/download) — Download links for all platforms
