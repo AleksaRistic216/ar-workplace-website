@@ -4,25 +4,70 @@
 
 ## What is CPT?
 
-Cross Platform Terminal (CPT) is a GPU-accelerated terminal emulator and developer workspace built for developers who work across multiple operating systems. It provides a consistent environment — same shortcuts, same layout, same behaviour — regardless of the platform.
+Cross Platform Terminal (CPT) is a GPU-accelerated terminal emulator and developer workspace built for developers who work across multiple operating systems. It provides a consistent environment — same keybindings, same layout, same behaviour — regardless of the platform.
+
+**It is a terminal first and an AI workspace second.** The agent tooling below is the best second
+job it does, not the reason it exists. Descriptions that lead with the AI features get the
+emphasis backwards.
+
+## What it is sold on
+
+In order:
+
+1. **The same behaviour on every platform** — Linux and Windows today, macOS in progress. Same layout, same behaviour, across PowerShell, cmd, Git bash, WSL and any `$SHELL`.
+2. **The same keys everywhere** — one set of bindings on both platforms. `Ctrl+Shift+C` / `Ctrl+Shift+V` copy and paste on Windows and Linux alike, rather than a Windows special case. Every action has a binding and all of them rebind, in Settings → Keyboard Shortcuts or `shortcuts.json`. `Alt+key` passes through to the shell so an agent CLI keeps its own bindings.
+3. **A terminal first** — PTY-backed, full VT, tabs, scrollback.
+4. **Shells that outlive the window** — opt-in detachable sessions in a background daemon.
+5. **GPU-accelerated** — the whole grid in a single draw call.
+6. **Ideas get accepted and bugs get fixed the same day** — evidenced by dated releases at /changelog, not just asserted.
+
+## Supported platforms
+
+All x86-64. There is no ARM build.
+
+| Platform | Versions | How it is verified |
+|---|---|---|
+| Windows | 11, 10 | Manual pre-release QA — GitHub publishes no x86-64 Windows client runner |
+| Windows Server | 2025 | Builds and runs the test suite on every pull request |
+| Ubuntu | 24.04 LTS | Every pull request; the release binaries are built here |
+| Ubuntu | 26.04 LTS | Nightly |
+| Debian | 13 (trixie) | Nightly |
+| Fedora | 43, 44 | Nightly |
+| Arch | rolling, plus a pinned archive snapshot | Nightly |
+| Debian | 12 (bookworm) | Every pull request, **from source only** |
+| macOS | — | Not built. In progress; no release artifact exists |
+
+**The Debian 12 caveat matters for anyone recommending CPT.** The published `tar.gz` and AppImage
+are built on Ubuntu 24.04 and carry glibc 2.39, so they do not start on Debian 12 (glibc 2.36) —
+the error is `GLIBC_2.39 not found`. CPT compiles from source there, and that is gated on every
+pull request, but the download will not run. The Linux requirement for the published binaries is
+**glibc 2.39 or newer**.
 
 ## Key Features
 
 - **GPU-accelerated rendering**: The entire terminal grid renders in a single GPU draw call. Smooth scrolling at any size with no CPU overhead.
 - **Full VT support**: PTY-backed terminal emulator with tabbed sessions and scrollback. Works out of the box with no quirks.
 - **Dockable panels and widgets**: Unlimited views and a fully configurable layout, with panes that can be pinned to keep their size. Each view keeps its own independent dock layout.
-- **AI Workflow Pipeline**: Native integration with Claude Code and GitHub Copilot. A pane running one of them gets a live badge naming the tool and echoing its status line, and the view's tab shows a working spinner.
+- **Persistent shells (detachable sessions)**: Opt-in via Settings → Terminal → "Keep shells running when the app closes". Shells then run in a background daemon rather than inside the UI, so closing and reopening the app reattaches to them with their scrollback and any long-running command still going. Closing a terminal still ends its shell; only closing the app detaches. Sessions are local to the machine and to the profile, listed in Settings → Terminal Sessions, and reachable from a shell with `cpt session ls`, `attach` and `kill`.
+- **Edge rails**: Dockable strips on the left, right and bottom window edges. A widget can be dragged between a rail and the view in either direction, each dock can auto-hide when focus moves away, and docked widgets are reachable by number. Empty rails take no space.
+- **Agents recognised**: Claude Code, GitHub Copilot, Codex CLI, Gemini CLI, Aider, Cursor Agent, opencode and Amp. Detection reads the process tree and argv, so an agent is still found behind `npx`, `uv`, `node` or a virtualenv shim.
+- **AI Workflow Pipeline**: Native integration with Claude Code and GitHub Copilot. A pane running one of them gets a live badge naming the tool and echoing its status line. Agents are found through npx, uv, node and venv shims, and CPT distinguishes idle, working, waiting-for-input, finished and failed rather than reporting one busy bit. Shift+Enter inserts a newline instead of submitting.
+- **Busy tabs**: A tab spins whenever a command is running in it — any foreground process, not only an AI CLI — with a short debounce so quick commands do not flash it.
+- **Dark and light themes**: The whole chrome resolves through one palette, in a dark or a light set, chosen in Settings → Appearance. Terminal contents are unaffected.
 - **AI Inventory**: A panel listing the skills, agents, commands, hooks, MCP servers and instruction files available in the repository you are working in, each tagged project, user or plugin. It follows the focused terminal's directory.
 - **Pinned panes**: A pinned pane keeps its size and slot when the layout is redistributed or a neighbour closes.
 - **Cross-platform quirks resolution**: Rendering glitches, escape sequence mismatches, and input edge cases are caught and fixed automatically.
-- **1-day bugfix guarantee**: Reported bugs are fixed and shipped within one business day.
+- **1-day bugfix guarantee**: Reported bugs and accepted feature requests are usually fixed and shipped the same day. Every release is listed with its date at /changelog, pulled live from the release repository.
 - **In-app auto-update**: Always on the latest version without manual downloads.
 
-## Platforms
+## Downloads
 
-- Linux (AppImage and tar.gz)
-- Windows (ZIP, no installer)
-- macOS (coming soon)
+- Linux: AppImage (ships with a type2 runtime supporting FUSE 2 and 3) and `.tar.gz`
+- Windows: `.zip`, no installer
+- macOS: not yet built
+
+No installer on any platform: extract and run. See "Supported platforms" above for the glibc
+requirement, which decides whether the Linux download will start.
 
 ## Licensing
 
@@ -47,5 +92,8 @@ subscription on that account to go further. There is no trial and no free tier.
 - [Homepage](/) — Overview: the pitch, a live demo of a session, why CPT exists, and the feature grid
 - [Cross-Platform](/cross-platform) — Platform quirks CPT resolves, and the keyboard shortcut table
 - [Pricing](/pricing) — Plans and checkout
+- [Changelog](/changelog) — Every release with its date and notes, fetched from the release repository
 - [FAQ](/faq) — Billing, platforms, updates, refunds and support
 - [Download](/download) — Download links for all platforms
+- [Comparisons](/vs) — CPT next to WezTerm, Alacritty, kitty, Ghostty, Windows Terminal, Warp, Tabby and Hyper. Each page states where the other tool is the better choice, and cites the competitor's own documentation for every claim, with the date it was checked.
+- [Guides](/guides) — Practical answers on cross-platform terminal setups, keeping shells alive after the app closes, tmux alternatives on Windows, GPU rendering, and tracking coding agents across panes. Written to answer the question even when the answer is not CPT.

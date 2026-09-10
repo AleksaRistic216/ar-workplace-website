@@ -1,12 +1,33 @@
-import Link from "next/link";
-
 import TerminalDemo from "@/components/TerminalDemo";
-import UpdateFootnote from "@/components/UpdateFootnote";
 
-const pills = [
-  "No installation — extract and run",
-  "Fully keyboard-driven",
-  "Linux · Windows · macOS soon",
+/*
+ * The four claims, in the order set out under "What CPT is selling" in `docs/architecture.md`.
+ * That section is the canonical statement, not this array — change it there first.
+ *
+ * The order is load-bearing. "Terminal first, AI second" is the positioning itself, so the
+ * terminal claim precedes the AI one on the page as well as in the sentence.
+ */
+const claims = [
+  {
+    heading: "The same on every platform",
+    body: "Linux and Windows today, macOS in progress. Same layout, same behaviour — across PowerShell, cmd, Git bash, WSL and whatever your $SHELL is.",
+  },
+  {
+    heading: "The same keys, everywhere",
+    body: "One set of bindings on every platform: Ctrl+Shift+C and Ctrl+Shift+V copy and paste on Windows and Linux alike, and every action — panes, views, docks, zoom — has a key and rebinds. Alt+key still passes through to the shell, so an agent CLI keeps its own.",
+  },
+  {
+    heading: "A terminal first",
+    body: "PTY-backed, full VT, tabs and scrollback. The AI tooling is the best second job it does — not the reason it exists.",
+  },
+  {
+    heading: "Shells that outlive the window",
+    body: "Turn it on and your terminals move into a background daemon. Close the app, open it again, and that half-hour build is still running.",
+  },
+  {
+    heading: "GPU-accelerated",
+    body: "The entire terminal grid renders in a single draw call. Smooth at any size, on any of them.",
+  },
 ];
 
 export default function Hero() {
@@ -42,49 +63,28 @@ export default function Hero() {
           className="text-center font-bold text-4xl sm:text-5xl lg:text-6xl leading-[1.08] tracking-tight max-w-3xl mx-auto"
           style={{ color: "var(--color-foreground)" }}
         >
-          One workspace.
+          One terminal.
           <br />
           <span style={{ color: "var(--color-accent)" }}>Every platform.</span>
         </h1>
 
         <p
-          className="mt-5 text-center text-base md:text-lg max-w-xl mx-auto leading-relaxed"
+          className="mt-5 text-center text-base md:text-lg max-w-2xl mx-auto leading-relaxed"
           style={{ color: "var(--color-muted)" }}
         >
-          A GPU-accelerated terminal and dockable workspace that behaves identically on Linux and
-          Windows. Same shortcuts, same layout, same muscle memory.
+          A GPU-accelerated terminal that behaves identically wherever you work, keeps your shells
+          running after you close it, and happens to be the best place to run an AI agent.
         </p>
 
-        {/* CTA */}
-        <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
-          <Link href="/pricing" className="px-6 py-3 rounded-lg font-semibold text-sm cpt-accent-btn">
-            Subscribe — €7.49/month
-          </Link>
-          <Link
-            href="/download"
-            className="px-6 py-3 rounded-lg font-medium text-sm border cpt-quiet"
-            style={{ borderColor: "var(--color-border)", color: "var(--color-muted)" }}
-          >
-            Download the app
-          </Link>
-        </div>
-
-        <p className="mt-4 text-center text-xs" style={{ color: "var(--color-muted)" }}>
-          CPT needs a subscription to run. €7.49 a month or €67.41 a year, paid a period at a
-          time — nothing auto-renews, and every update is included while you are subscribed.
-          <UpdateFootnote />
-        </p>
-
-        {/* Trust pills */}
-        <div className="mt-7 flex flex-wrap items-center justify-center gap-x-5 gap-y-2">
-          {pills.map((pill) => (
-            <span
-              key={pill}
-              className="inline-flex items-center gap-1.5 text-xs"
-              style={{ color: "var(--color-muted)" }}
-            >
+        {/*
+         * The four claims. No call to action here by design — the nav carries Download and the
+         * teasers carry Pricing, so the hero's whole job is to say what CPT is.
+         */}
+        <div className="mt-10 grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-6 max-w-3xl mx-auto text-left">
+          {claims.map((c) => (
+            <div key={c.heading} className="flex gap-3">
               <svg
-                className="w-3.5 h-3.5 shrink-0"
+                className="w-4 h-4 mt-0.5 shrink-0"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -93,8 +93,15 @@ export default function Hero() {
               >
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
               </svg>
-              {pill}
-            </span>
+              <div>
+                <p className="text-sm font-semibold mb-1" style={{ color: "var(--color-foreground)" }}>
+                  {c.heading}
+                </p>
+                <p className="text-sm leading-relaxed" style={{ color: "var(--color-muted)" }}>
+                  {c.body}
+                </p>
+              </div>
+            </div>
           ))}
         </div>
 

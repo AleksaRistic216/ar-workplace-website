@@ -23,6 +23,11 @@ const shortcutGroups = [
       { action: "Paste", keys: "Ctrl+Shift+V" },
       { action: "Zoom in / out", keys: "Ctrl+Shift+= / −" },
       { action: "Switch tab within a pane", keys: "Ctrl+1…9" },
+      {
+        action: "Answer “still running — close anyway?”",
+        keys: "K / E / Esc",
+        note: "Keep running, end the session, or cancel — read only while that dialog is up",
+      },
     ],
   },
   {
@@ -30,6 +35,11 @@ const shortcutGroups = [
     items: [
       { action: "Focus left / right", keys: "Ctrl+Alt+Home / End" },
       { action: "Focus up / down", keys: "Ctrl+Alt+PgUp / PgDn" },
+      {
+        action: "Focus pane 1…9",
+        keys: "Ctrl+Alt+1…9",
+        note: "Positional — the Nth pane in the active view",
+      },
       { action: "Move left / right", keys: "Ctrl+Shift+Alt+Home / End" },
       { action: "Move up / down", keys: "Ctrl+Shift+Alt+PgUp / PgDn" },
       { action: "Shrink / grow width", keys: "Ctrl+Shift+Alt+[ / ;" },
@@ -39,6 +49,17 @@ const shortcutGroups = [
         keys: "Ctrl+Shift+Alt+P",
         note: "A pinned pane keeps its size when the layout is redistributed",
       },
+    ],
+  },
+  {
+    group: "Edge rails",
+    items: [
+      {
+        action: "Focus docked widget 1…9",
+        keys: "Ctrl+Shift+Alt+1…9",
+        note: "Slots run left, right, then bottom. Pressing the slot a widget already has collapses its dock again",
+      },
+      { action: "Cycle docked widgets", keys: "Ctrl+Shift+Alt+Tab / `" },
     ],
   },
   {
@@ -76,11 +97,15 @@ const quirks = [
       },
       {
         title: "The prompt's directory, tracked correctly",
-        body: "Under ConPTY, Windows reports the wrong working directory for a running shell. CPT asks the shell to report its own over OSC 7, follows it through child processes, and records the whole chain in diagnostics when it does not arrive — so panes that track your directory stay pointed at the right repository.",
+        body: "Under ConPTY, Windows reports the wrong working directory for a running shell. CPT asks the shell to report its own over OSC 7 and follows the chain only through shells — so the Git-for-Windows launcher hop still resolves, but a helper an AI CLI spawns cannot drag your pane off to C:\\Windows. When nothing arrives, the whole chain is recorded in diagnostics.",
+      },
+      {
+        title: "Ctrl+C interrupts",
+        body: "Windows hands a shell an \u201Cignore Ctrl+C\u201D flag it then passes to everything it starts, so the key reached the program and did nothing. CPT clears it before spawning the shell — Ctrl+C stops a running command instead of waiting it out.",
       },
       {
         title: "Any shell you want",
-        body: "Name the shell in Settings → Terminal — powershell.exe, pwsh, cmd.exe, bash, or wsl.exe. PowerShell is instrumented for directory reporting out of the box; the choice applies to new terminals.",
+        body: "Name the shell in Settings → Terminal — powershell.exe, pwsh, cmd.exe, bash, or wsl.exe. PowerShell and Git bash are both instrumented for directory reporting out of the box; the choice applies to new terminals.",
       },
       {
         title: "No console window",
