@@ -8,6 +8,10 @@ const links: { label: string; href: string; kind: Kind }[] = [
   { label: "Download", href: "/download", kind: "route" },
   { label: "Pricing", href: "/pricing", kind: "route" },
   { label: "FAQ", href: "/faq", kind: "route" },
+  // The content hubs live in the footer rather than the navbar: they are entry points for search
+  // traffic, not steps in the buying path, and the header is already at its width on mobile.
+  { label: "Compare", href: "/vs", kind: "route" },
+  { label: "Guides", href: "/guides", kind: "route" },
   { label: "Releases", href: RELEASES_URL, kind: "external" },
   { label: "Report a bug", href: ISSUES_URL, kind: "external" },
 ];

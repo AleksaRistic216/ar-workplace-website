@@ -1,11 +1,139 @@
 # Site Architecture
 
+## What CPT is selling
+
+The four claims the site leads with, in order. This is the canonical statement of positioning:
+the hero renders it, `/release-sync` checks drift against it, and a change here is a deliberate
+repositioning rather than a copy tweak. Everything else the product does is a *feature*; these
+four are the reasons to buy.
+
+### 1. The same behaviour on every platform
+
+The name is the promise, so it goes first. Not "runs on" — *behaves identically on*: the same
+shortcuts, the same layout, the same muscle memory.
+
+| Platform | Ships as | Architecture | Status |
+|---|---|---|---|
+| Linux | AppImage (FUSE 2 + 3 runtime) and `.tar.gz` | `x86_64` | Shipping |
+| Windows | `.zip`, no installer | `x86_64` | Shipping |
+| macOS | — | — | In progress, no build yet |
+
+**`x86_64` only on both.** There is no ARM asset; never imply one. The macOS row stays as-is
+until a `.dmg` actually appears in a release — see the Download page section.
+
+**The keyboard is the sharp end of this claim**, and the hero states it as a claim of its own.
+It is what a buyer actually feels when they switch machines: one set of bindings everywhere,
+`Ctrl+Shift+C` / `Ctrl+Shift+V` for copy and paste on both platforms rather than a Windows
+special case, every action bound, and all of them rebindable in Settings → Keyboard Shortcuts or
+`shortcuts.json`. `Alt+key` deliberately passes through to the shell so an agent CLI keeps its
+own bindings. The full table lives on `/cross-platform` and is checked against
+`ShortcutManager::registerAllDefaults()` on every `/release-sync`.
+
+The sub-platforms, which are where "identical" is actually tested, are the shells:
+
+- **Windows:** `powershell.exe`, `pwsh`, `cmd.exe`, Git/MSYS `bash`, `wsl.exe`
+  (`SettingsWindow.cpp:280` is the tooltip the site quotes). PowerShell and Git bash are
+  instrumented for directory reporting; the rest run uninstrumented.
+- **Linux:** whatever `$SHELL` is. Recognised as shells for cwd tracking: `bash`, `sh`, `dash`,
+  `zsh`, `fish`, `ksh`, `tcsh`, `csh`, `busybox` (`ProcessChain.cpp`).
+
+### 2. Terminal first, AI second
+
+**Order matters and is deliberate.** CPT is a terminal emulator that is unusually good at hosting
+AI agents — not an AI product with a terminal attached. The AI work (inventory, agent states,
+badges, the workflow pipeline) is a strong second and must never displace the terminal as the
+first thing said.
+
+This is a correction to a real drift: in September 2026 the AI feature set grew fast enough that
+the page began leading with it. If a future run is tempted to promote AI to the first claim,
+that is a repositioning — take it to the user, do not let it happen one card at a time.
+
+### 3. Detached daemons
+
+Shells run in a background daemon and outlive the window, so closing the app and reopening it
+reattaches to them with scrollback and running commands intact. **Opt-in** — see the Detachable
+shells section of `release-sync.md` for the facts and the default-off hazard.
+
+### 4. GPU-accelerated
+
+The whole terminal grid in a single draw call. The oldest claim on the site and still the
+performance story.
+
+### 5. Ideas get accepted, and bugs get fixed the same day
+
+The one claim a competitor cannot copy by writing code, and the only one the site **evidences
+rather than asserts**: `/changelog` and the home page's release strip list real releases with
+real dates, fetched from the release repository. A promise about responsiveness is worth little;
+a live feed showing eleven releases in two days is worth a lot.
+
+The corollary is that this claim can embarrass you. A quiet fortnight will show as a quiet
+fortnight. That is the deal, and it is the reason the section is worth having.
+
+**Agent breadth belongs to claim 2, not here.** The eight recognised agent CLIs are listed on the
+home page from `kRules` in `AgentCatalog.cpp`; adding one in the product is adding a row there,
+and the site's list must be checked against it — see the Agents section of `release-sync.md`.
+
+## Being read by assistants
+
+A large share of this product's buyers ask an assistant what terminal to use before they ask a
+search engine, so the site is written to be *quoted correctly* rather than merely indexed. Four
+mechanisms, in descending order of how much they matter:
+
+1. **`public/llms.txt`** — the summary written for that audience, and the highest-leverage file
+   here. It states the positioning order, the full supported-platform table, the glibc caveat,
+   the agent list and the pricing rules as flat checkable facts. **When a claim changes on the
+   site it must change here**, or assistants will keep repeating the old one long after the page
+   is fixed.
+2. **JSON-LD.** `SoftwareApplication` on `/` and `/download` (the latter with the live version,
+   date and real download URLs), `ItemList` of dated releases on `/changelog`, `FAQPage` on
+   `/faq`. "Is it maintained?" and "what does it need to run?" are then readable rather than
+   inferred.
+3. **`robots.ts` names the AI crawlers explicitly** — training and answer-time agents, both
+   allowed, split by purpose so a future change is a deliberate one rather than a side effect of
+   tightening `*`. `/api/` is disallowed for everyone: POST endpoints with nothing to index.
+4. **Metadata** — `metadataBase`, a canonical on every route, and `max-snippet: -1` so a
+   quotation is not truncated mid-fact.
+5. **A text alternative for the hero demo.** The frame is `role="img"` and only the selected
+   clip is ever in the DOM, so before this, four fifths of what the demo says reached no
+   crawler, no assistant and no screen reader. A `<details>` under the player now server-renders
+   every clip's blurb and narration, derived from `demos` so it cannot drift.
+
+   **The simulated frames are deliberately not all rendered and hidden.** That would be five
+   times the markup to publish `cargo build --release` as keyword text, and `role="img"` would
+   discount it anyway. The sentences are the part worth reading; the terminal is a picture of
+   the product.
+
+### The demo's `?clip=` parameter
+
+Which clip is showing lives in the URL, so a clip can be linked to. Two constraints shaped how,
+and both are easy to undo by accident:
+
+- **Not `useSearchParams`.** On a prerendered route it forces the client tree up to the nearest
+  Suspense boundary to be client-side rendered — which would pull the demo, its still frame and
+  the text alternative out of the served HTML. Reading `window.location` keeps `/` static: a
+  request for `/?clip=docks` returns byte-identical HTML to `/`, served from the same static
+  render.
+- **Not `useState` synced by an effect**, which trips `react-hooks/set-state-in-effect`. The
+  parameter is read with `useSyncExternalStore`; `history.replaceState` fires no event, so the
+  picker notifies the store itself, and `popstate` is subscribed so Back and Forward work.
+
+The server snapshot is `null`, so the prerendered HTML is always the first clip and hydration
+cannot mismatch. A deep link paints clip 0 for one frame and swaps. **This is also why the SSR
+seed is `stillFrame(clips[0])`** — see the capture note in `release-sync.md` before "fixing" it.
+
+**The trap this has already fallen into once:** the root `metadata` in `layout.tsx` claimed
+"Linux, Windows and macOS" for months after every visible surface had been corrected to exclude
+macOS. Nothing renders that string, so no capture and no page review catches it. Check
+`layout.tsx`, `llms.txt` and the JSON-LD alongside the visible copy, or the machine-readable
+half of the site drifts on its own.
+
 ## Routes
 
 | Route | File | Notes |
 |---|---|---|
 | `/` | `src/app/page.tsx` | Hero, pillars, the feature grid, and teasers into the pages below |
 | `/cross-platform` | `src/app/cross-platform/page.tsx` | Platform quirks and the shortcut table |
+| `/changelog` | `src/app/changelog/page.tsx` | Patch notes, fetched from the release repo (server component, ISR) |
 | `/pricing` | `src/app/pricing/page.tsx` | Plans and checkout |
 | `/faq` | `src/app/faq/page.tsx` | FAQ accordion, `FAQPage` JSON-LD |
 | `/download` | `src/app/download/page.tsx` | Per-platform downloads (server component, ISR) |
@@ -20,12 +148,15 @@
 layout.tsx                    ← metadata, font vars, global CSS
 ├── page.tsx                  ← home, SoftwareApplication JSON-LD
 │   ├── Navbar                ← fixed header, mobile menu, Escape to close
-│   ├── Hero                  ← headline, CTA pair, TerminalDemo
+│   ├── Hero                  ← headline, the 4 claims, TerminalDemo. No CTA by design
 │   │   └── TerminalDemo      ← the replaying session (client)
-│   ├── Pillars               ← 4 claims, each with a spec tag
-│   ├── Features              ← 8 feature cards, id="features"
+│   ├── Platforms             ← supported OS versions + how each is tested
+│   ├── Features              ← feature cards, id="features"
+│   ├── Agents                ← the 8 recognised agent CLIs
+│   ├── ReleaseStrip          ← last 5 releases with dates (async, fetches GitHub)
 │   ├── SectionTeasers        ← 3 cards into the pages below; carries the legacy anchor ids
 │   └── Footer
+├── changelog/page.tsx        ← patch notes (async, fetches GitHub, ISR)
 ├── cross-platform/page.tsx   ← CrossPlatform (quirks + folded shortcut table)
 ├── pricing/page.tsx          ← Pricing (plans + checkout modal, client)
 ├── faq/page.tsx              ← FAQ (accordion + FAQPage JSON-LD)
@@ -379,6 +510,34 @@ flush panes, when the shipped default is rounded cards with a gutter; and the wr
 The product draws a **red** top accent on the active view tab (`ViewManager.cpp`) and a **blue**
 one on the active pane tab (`WidgetTabBar.cpp`) — `--color-view-tab` and `--color-pane-tab` in
 `globals.css` are those two, sampled from a real capture.
+
+Found the same way in the September 2026 release-sync: **`View` came back** in #114, but not as a
+third menu on the left — it is a right-anchored pill with a chevron, sitting just left of the
+window buttons, holding Redistribute Layout and Auto Layout Mode (`TitleBar.cpp:181`). The demo now
+draws it. The comment that used to say "the product's menu bar is exactly these two" was itself the
+hazard: it read as verified and discouraged a re-check.
+
+### When CPT cannot be built locally
+
+`capture-product.sh` needs a built binary, and that is often not available — the checkout may be
+stale, and the screenshot harness has never run on the Windows checkout. **The fallback is the CPT
+repo's own CI.** The Screenshot Tests workflow uploads a `screenshot-diffs-*` artifact whenever it
+fails, containing `baseline.png`, `current.png` and `diff.png` per scenario; `current.png` is a
+genuine capture of the product at that commit.
+
+```bash
+gh run list  --repo AleksaRistic216/cross-platform-terminal-dev --workflow screenshot-tests.yml
+gh run download <id> --repo AleksaRistic216/cross-platform-terminal-dev -n screenshot-diffs-linux
+```
+
+Two cautions, both of which bit in September 2026:
+
+- **Check the run's `head_sha` against the release you are auditing.** The artifact captures that
+  commit, not the latest tag, and the gap can hide exactly the UI work you are checking.
+- **`tests/screenshot/baselines/*.png` in the CPT repo are not evidence.** They are only refreshed
+  when someone approves new baselines from the workflow, and in September 2026 they were three
+  months stale — predating the View menu, the edge rails and the whole theme rewrite. Compare
+  against `current.png`, never against the committed baseline.
 
 ### The shortcut table
 

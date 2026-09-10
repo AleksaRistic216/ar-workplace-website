@@ -14,6 +14,7 @@ import HashLink from "@/components/HashLink";
 const links = [
   { label: "Features", href: "/#features", hash: true },
   { label: "Cross-Platform", href: "/cross-platform" },
+  { label: "Changelog", href: "/changelog" },
   { label: "Pricing", href: "/pricing" },
   { label: "FAQ", href: "/faq" },
 ];

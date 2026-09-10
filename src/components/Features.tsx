@@ -7,7 +7,7 @@ const features = [
       </svg>
     ),
     title: "Multi-View Workspace",
-    body: "Named tabs, each with an independent dock layout. Reorder them by dragging, number them if you like, and inactive views suspend to near-zero resource usage.",
+    body: "Named tabs, each with an independent dock layout. Reorder them by dragging, number them if you like, and switch with a keystroke — every view keeps exactly the arrangement you left it in.",
   },
   {
     icon: (
@@ -23,11 +23,23 @@ const features = [
     icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+          d="M12 3v9m0 0l3-3m-3 3l-3-3" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+          d="M4 14v4a2 2 0 002 2h12a2 2 0 002-2v-4" />
+      </svg>
+    ),
+    title: "Shells That Outlive the Window",
+    body: "Switch on “Keep shells running when the app closes” and your terminals move into a background daemon. Quit CPT, open it again, and the same shells are waiting - scrollback intact, that half-hour build still running. Settings → Terminal Sessions shows what is held, and cpt session ls reaches them from any shell.",
+  },
+  {
+    icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
           d="M13 10V3L4 14h7v7l9-11h-7z" />
       </svg>
     ),
     title: "AI Workflow Pipeline",
-    body: "Chain steps that rewrite prompts before they reach Claude Code or Copilot - prepend, append, script, detect.",
+    body: "Chain steps that rewrite prompts before they reach Claude Code or Copilot - prepend, append, script, detect. Shift+Enter adds a line instead of sending, so a half-written prompt never gets submitted for you.",
   },
   {
     icon: (
@@ -39,7 +51,7 @@ const features = [
       </svg>
     ),
     title: "AI Tool Detection",
-    body: "When Claude Code or Copilot starts in a pane, that pane gets a live badge naming the tool and echoing its status line. A working spinner appears on the view's own tab too, so you can see which workspace is busy from anywhere. Zero config.",
+    body: "When any of the eight known agent CLIs starts in a pane, that pane gets a live badge naming the tool and echoing its status line — and CPT tells its states apart, so an agent waiting on a question does not look like one still working. They are found through npx, uv, node and venv shims, not just by name. Zero config.",
   },
   {
     icon: (
@@ -61,7 +73,28 @@ const features = [
       </svg>
     ),
     title: "Pinned Panes",
-    body: "Pin a pane and it keeps the size and the slot you gave it. Redistribute the layout, close a neighbour, or open another terminal - the narrow file tree or log pane stays exactly as you set it, and the rest share out what is left.",
+    body: "Pin a pane and it keeps the size and the slot you gave it. Redistribute the layout, close a neighbour, or open another terminal - the narrow inventory panel or the log you are tailing stays exactly as you set it, and the rest share out what is left.",
+  },
+  {
+    icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+          d="M4 5a1 1 0 011-1h14a1 1 0 011 1v14a1 1 0 01-1 1H5a1 1 0 01-1-1V5z" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 4v16M20 15H8" />
+      </svg>
+    ),
+    title: "Docks on Every Edge",
+    body: "Rails down the left and right and along the bottom, each a strip of toggles opening a resizable dock. Drag a widget out to an edge and back, give a dock auto-hide so it collapses when you look away, and reach any of them by number. Empty rails take up no space at all.",
+  },
+  {
+    icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="8.5" strokeWidth={1.5} />
+        <path strokeWidth={1.5} d="M12 3.5v17a8.5 8.5 0 000-17z" fill="currentColor" stroke="none" />
+      </svg>
+    ),
+    title: "Dark and Light",
+    body: "Every colour the app draws - title bar, both tab strips, the rails, the dialogs - resolves through one palette, in a dark set or a light one. Pick it in Settings → Appearance and the swap lands on the next frame. Terminal contents are left alone.",
   },
   {
     icon: (

@@ -1,17 +1,26 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import {
+  AGENT_BADGE,
   CWD,
   HOST,
-  WIDGETS_MENU,
+  ATTACHED_LINES,
+  MENUS,
+  SESSIONS_FOOTER,
+  DETACHED_ROW,
+  SESSION_ROWS,
+  SETTINGS_CHECKS,
   demos,
   inventories,
+  type AgentState,
   type Color,
   type Demo,
   type InventoryItem,
   type Line,
   type Op,
+  type RailSide,
+  type SessionRow,
 } from "@/lib/demo-session";
 
 /*
@@ -28,7 +37,10 @@ import {
  * this component ever reads the state.
  */
 
-type Pane = { id: number; kind: "term" | "inventory"; cwd: string; ai: string | null; lines: Line[]; input: string };
+type Agent = { tool: string; state: AgentState };
+type Pane = { id: number; kind: "term" | "inventory"; cwd: string; ai: Agent | null; lines: Line[]; input: string };
+/** One edge rail: the widget parked on it, and whether its dock is expanded. */
+type Rail = { widget: string | null; open: boolean };
 
 /** The repository a directory belongs to — its last segment, as the widget shows it. */
 function repoOf(cwd: string): string {
@@ -48,6 +60,16 @@ type Session = {
   /** The simulated cursor: which `data-ptr` element it sits on, and whether it is clicking. */
   pointer: { at: string; click: boolean } | null;
   caption: string;
+  /** The edge rails (#119). Only the two the demo docks onto; the product also has a right rail. */
+  rails: Record<RailSide, Rail>;
+  /** A widget picked up by its tab and in flight between the view and a rail. */
+  drag: { pane: number; label: string; over: RailSide | null } | null;
+  /** The Terminal Sessions modal: whether it is up, and the rows it lists. */
+  sessions: { open: boolean; rows: SessionRow[] };
+  /** The Settings → Widgets window, and the one checkbox the demo touches. */
+  settings: { open: boolean; persistent: boolean };
+  /** The "still running — close anyway?" question, when a pane has raised it. */
+  closeAsk: { pane: number; name: string; process: string } | null;
   /** Pane and view keys. Kept in the session so `stillFrame()` stays pure. */
   nextId: number;
 };
@@ -72,6 +94,15 @@ function initial(): Session {
     scanning: null,
     pointer: null,
     caption: "",
+    rails: {
+      left: { widget: null, open: false },
+      right: { widget: null, open: false },
+      bottom: { widget: null, open: false },
+    },
+    drag: null,
+    sessions: { open: false, rows: SESSION_ROWS },
+    settings: { open: false, persistent: false },
+    closeAsk: null,
     nextId: 2,
   };
 }
@@ -133,8 +164,89 @@ function applyInstant(s: Session, op: Op): Session {
       s.activeView = Math.min(op.index, s.views.length - 1);
       return s;
     case "ai":
-      pane(s).ai = op.tool;
+      pane(s).ai = op.tool ? { tool: op.tool, state: op.state ?? "working" } : null;
       return s;
+    case "agent": {
+      // The badge belongs to the widget running the agent, not to whatever has focus — the same
+      // per-widget rule `renderAiOverlay` follows.
+      for (const v of s.views) {
+        const p = v.panes.find((q) => q.ai);
+        if (p?.ai) p.ai = { ...p.ai, state: op.state };
+      }
+      return s;
+    }
+    case "rail": {
+      const rail = s.rails[op.side];
+      s.rails = { ...s.rails, [op.side]: { widget: op.widget ?? rail.widget, open: op.open } };
+      return s;
+    }
+    case "dialog":
+      s.sessions = { ...s.sessions, open: op.open };
+      return s;
+    case "settings":
+      s.settings = { ...s.settings, open: op.open };
+      return s;
+    case "persist":
+      s.settings = { ...s.settings, persistent: op.on };
+      return s;
+    case "closeask": {
+      const v = view(s);
+      const p = v.panes[op.pane];
+      if (!p) return s;
+      const termNo = v.panes.slice(0, op.pane + 1).filter((q) => q.kind === "term").length;
+      s.closeAsk = { pane: op.pane, name: `Terminal ${termNo}`, process: op.process };
+      return s;
+    }
+    case "closeanswer": {
+      const ask = s.closeAsk;
+      s.closeAsk = null;
+      if (!ask || op.answer === "cancel") return s;
+
+      const v = view(s);
+      v.panes = v.panes.filter((_, i) => i !== ask.pane);
+      v.active = Math.min(v.active, Math.max(v.panes.length - 1, 0));
+
+      // "Keep running" closes the pane only and leaves the session in the daemon; "End session"
+      // stops the shell, so nothing is left to list.
+      if (op.answer === "keep") {
+        s.sessions = { ...s.sessions, rows: [...s.sessions.rows, DETACHED_ROW] };
+      }
+      return s;
+    }
+    case "attach": {
+      // What the dialog's "Open" button does: a new terminal appears in the view showing that
+      // session, and the row stops being detached. The shell itself is untouched.
+      const v = view(s);
+      const row = s.sessions.rows.find((r) => r.id === op.session);
+      v.panes = [
+        ...v.panes,
+        { id: s.nextId++, kind: "term", cwd: row?.dir ?? CWD, ai: null, lines: ATTACHED_LINES, input: "" },
+      ];
+      v.active = v.panes.length - 1;
+      s.sessions = {
+        ...s.sessions,
+        rows: s.sessions.rows.map((r) => (r.id === op.session ? { ...r, state: "open here" } : r)),
+      };
+      return s;
+    }
+    case "drag":
+      s.drag = { pane: op.pane, label: op.label, over: null };
+      return s;
+    case "dragover":
+      if (s.drag) s.drag = { ...s.drag, over: op.side };
+      return s;
+    case "drop": {
+      const drag = s.drag;
+      s.drag = null;
+      if (!drag?.over) return s;
+      // The widget leaves the view and arrives on the rail with its dock open — one object
+      // moving, which is why the product does not call onClose(): a terminal keeps its shell.
+      const v = view(s);
+      v.panes = v.panes.filter((_, i) => i !== drag.pane);
+      v.active = Math.min(v.active, Math.max(v.panes.length - 1, 0));
+      s.rails = { ...s.rails, [drag.over]: { widget: drag.label, open: true } };
+      return s;
+    }
     case "menu":
       s.menu = op.open ? { name: op.open, highlight: op.highlight ?? null } : null;
       return s;
@@ -173,6 +285,10 @@ function frameOf(ops: Op[]): Session {
   s.keys = null;
   s.menu = null;
   s.pointer = null;
+  // A drag is an input affordance like the others: a still frame never shows one mid-flight.
+  s.drag = null;
+  // Nor an unanswered question.
+  s.closeAsk = null;
   if (s.scanning) {
     s.inventoryRepo = s.scanning;
     s.scanning = null;
@@ -192,9 +308,72 @@ function stillFrame(d: Demo): Session {
 
 const CANCELLED = Symbol("cancelled");
 
+/*
+ * The `?clip=` parameter as an external store, so the picker can read it without setting state
+ * in an effect. `history.replaceState` fires no event of its own, hence the local listener set
+ * alongside `popstate`.
+ */
+const clipParamListeners = new Set<() => void>();
+
+function subscribeToClipParam(onChange: () => void): () => void {
+  clipParamListeners.add(onChange);
+  window.addEventListener("popstate", onChange);
+  return () => {
+    clipParamListeners.delete(onChange);
+    window.removeEventListener("popstate", onChange);
+  };
+}
+
+/** Returns a string or null, so `useSyncExternalStore` compares snapshots by value. */
+function readClipParam(): string | null {
+  return new URLSearchParams(window.location.search).get("clip");
+}
+
+function emitClipParamChange(): void {
+  for (const listener of clipParamListeners) listener();
+}
+
 export default function TerminalDemo() {
   const clips = demos;
-  const [pick, setPick] = useState(0);
+  /*
+   * Which clip is showing is held in the URL — `?clip=<id>` — not in component state, so a clip
+   * can be linked to from the changelog, a support reply or a post.
+   *
+   * Two decisions worth keeping:
+   *
+   * **Not `useSearchParams`.** In a prerendered route it forces the client component tree up to
+   * the nearest Suspense boundary to be *client-side rendered*, which would pull this component,
+   * its still frame and the text alternative below it out of the served HTML — exactly the
+   * content that alternative exists to put there. The parameter is not worth the page.
+   *
+   * **Not `useState` synced by an effect.** Setting state in an effect body causes the cascading
+   * render `react-hooks/set-state-in-effect` warns about. `useSyncExternalStore` is the sanctioned
+   * primitive for reading a browser API, and it gets Back and Forward right for nothing: the
+   * subscription listens for `popstate` as well as our own writes.
+   *
+   * The server snapshot is `null`, so the prerendered HTML is always the first clip and hydration
+   * cannot mismatch. A deep link therefore paints clip 0 for one frame and then swaps — a
+   * visitor sees a flick, a crawler sees the whole page, which is the right way round.
+   */
+  const clipId = useSyncExternalStore(subscribeToClipParam, readClipParam, () => null);
+  const pick = Math.max(
+    0,
+    clips.findIndex((d) => d.id === clipId)
+  );
+
+  /** Selects a clip by rewriting the URL. No navigation, and no history entry per click. */
+  const choose = useCallback(
+    (i: number) => {
+      const url = new URL(window.location.href);
+      // The first clip is the default, so it needs no parameter — a bare `/` stays the tidy URL.
+      if (i === 0) url.searchParams.delete("clip");
+      else url.searchParams.set("clip", clips[i].id);
+      window.history.replaceState(null, "", url);
+      // replaceState fires no event, so the store has to be told.
+      emitClipParamChange();
+    },
+    [clips]
+  );
   const active = clips[Math.min(pick, clips.length - 1)];
 
   /*
@@ -461,7 +640,7 @@ export default function TerminalDemo() {
                 type="button"
                 role="tab"
                 aria-selected={on}
-                onClick={() => setPick(i)}
+                onClick={() => choose(i)}
                 className="text-xs px-3 py-1.5 rounded-full border transition-colors"
                 style={{
                   borderColor: on ? "var(--color-accent)" : "var(--color-border)",
@@ -485,7 +664,7 @@ export default function TerminalDemo() {
           boxShadow: "0 24px 70px rgba(0,0,0,0.55)",
         }}
         role="img"
-        aria-label="A Cross Platform Terminal session: a release build runs in one pane, a second pane is opened with Ctrl+Shift+T, Claude Code starts in it and the pane picks up an AI badge, an AI Inventory panel docks alongside listing the skills, agents, commands and MCP servers this repository has, then a second view is opened with Alt+T and the first view is returned to with its layout intact."
+        aria-label={`A Cross Platform Terminal session, showing "${active.label}": ${active.blurb}`}
       >
         <div aria-hidden style={{ fontFamily: "var(--font-mono), ui-monospace, monospace" }}>
           {/* Title bar */}
@@ -495,12 +674,29 @@ export default function TerminalDemo() {
             style={{ background: "#141419", borderColor: "var(--color-border)", color: "var(--color-muted)" }}
           >
             <div className="relative flex items-center gap-4">
-              {/* The product's menu bar is exactly these two — File and View were removed in #6. */}
-              {["Widgets", "Settings"].map((m) => (
+              {/*
+               * The app mark. Four rounded squares at the far left of the title bar, ahead of the
+               * menus — the same mark as this site's own icon. Colours sampled from a capture of
+               * the shipped v0.5.6 build.
+               */}
+              <span className="grid grid-cols-2 gap-[1.5px] shrink-0" aria-hidden>
+                {["#34D399", "#60A5FA", "#A78BFA", "#FBBF24"].map((c) => (
+                  <span key={c} className="w-[5px] h-[5px] rounded-[1px]" style={{ background: c }} />
+                ))}
+              </span>
+              {/* The left menu bar is exactly these two — File and View were removed in #6. View
+                * came back in #114, but as a right-anchored pill by the window buttons rather than
+                * a third menu here; it is drawn in the right-hand cluster below. */}
+              {/*
+               * Each menu owns its own dropdown, so the panel opens under the label that was
+               * clicked. It used to be one absolutely-positioned panel pinned to the left edge,
+               * which was fine while only Widgets ever opened.
+               */}
+              {(["Widgets", "Settings"] as const).map((m) => (
                 <span
                   key={m}
-                  data-ptr={m === "Widgets" ? "menu-widgets" : undefined}
-                  className="px-1 rounded-sm"
+                  data-ptr={m === "Widgets" ? "menu-widgets" : "menu-settings"}
+                  className="relative px-1 rounded-sm"
                   style={
                     s.menu?.name === m
                       ? { background: "#2f2f2f", color: "var(--color-foreground)" }
@@ -508,44 +704,145 @@ export default function TerminalDemo() {
                   }
                 >
                   {m}
+                  {/* Items come from TitleBar.cpp, in the order it declares them. */}
+                  {s.menu?.name === m && (
+                    <div
+                      className="absolute top-full left-0 mt-1 min-w-[136px] rounded-sm border py-1 z-30"
+                      style={{ background: "#1f1f1f", borderColor: "#3c3c3c" }}
+                    >
+                      {MENUS[m].map((item, i) =>
+                        item === null ? (
+                          <div
+                            key={`sep-${i}`}
+                            className="my-1 border-t"
+                            style={{ borderColor: "#3c3c3c" }}
+                          />
+                        ) : (
+                          <div
+                            key={item}
+                            data-ptr={
+                              item === "AI Inventory"
+                                ? "menu-ai-inventory"
+                                : item === "Terminal Sessions"
+                                  ? "menu-terminal-sessions"
+                                  : // The Settings menu has its own "Widgets" item, distinct
+                                    // from the Widgets menu in the bar next to it.
+                                    m === "Settings" && item === "Widgets"
+                                    ? "menu-widgets-item"
+                                    : undefined
+                            }
+                            className="px-3 py-0.5 whitespace-nowrap"
+                            style={{
+                              background: s.menu?.highlight === item ? "#1f3a58" : "transparent",
+                              color:
+                                s.menu?.highlight === item ? "#cfe0f0" : "var(--color-muted)",
+                            }}
+                          >
+                            {item}
+                          </div>
+                        )
+                      )}
+                    </div>
+                  )}
                 </span>
               ))}
-
-              {/* The open menu. Items come from TitleBar.cpp, in the order it declares them. */}
-              {s.menu && (
-                <div
-                  className="absolute top-full left-0 mt-1 min-w-[136px] rounded-sm border py-1"
-                  style={{ background: "#1f1f1f", borderColor: "#3c3c3c" }}
-                >
-                  {WIDGETS_MENU.map((item) => {
-                    const hot = s.menu?.highlight === item;
-                    return (
-                      <div
-                        key={item}
-                        data-ptr={item === "AI Inventory" ? "menu-ai-inventory" : undefined}
-                        className="px-3 py-0.5 whitespace-nowrap"
-                        style={{
-                          background: hot ? "#1f3a58" : "transparent",
-                          color: hot ? "#cfe0f0" : "var(--color-muted)",
-                        }}
-                      >
-                        {item}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
             </div>
-            <div className="flex items-center gap-3 text-[10px]" style={{ opacity: 0.7 }}>
-              <span>&#8211;</span>
-              <span>&#9723;</span>
-              <span>&#10005;</span>
+            <div className="flex items-center gap-3 text-[10px]">
+              {/*
+               * The View menu (#114). Right-anchored, just left of the window buttons, and styled
+               * as a dimmer pill with a chevron so it reads as a view control rather than another
+               * app menu — TitleBar.cpp:181. It holds Redistribute Layout and Auto Layout Mode.
+               * Never opened by the demo; it is here because the product's title bar has it.
+               */}
+              <span
+                className="flex items-center gap-1 rounded-sm border px-1.5 py-0.5 text-[10px]"
+                style={{ borderColor: "#3c3c3c", color: "var(--color-muted)", opacity: 0.85 }}
+              >
+                View
+                <span style={{ fontSize: "7px", opacity: 0.8 }}>&#9660;</span>
+              </span>
+              <span style={{ opacity: 0.7 }}>&#8211;</span>
+              <span style={{ opacity: 0.7 }}>&#9723;</span>
+              <span style={{ opacity: 0.7 }}>&#10005;</span>
             </div>
           </div>
 
+          {/*
+           * Everything between the title bar and the status bar, at a fixed height so opening a
+           * dock redistributes the space instead of resizing the frame.
+           *
+           * The geometry is EdgeLayout's: the bottom band spans the full width, and the left rail
+           * is inset above it. That is why the view tab strip starts to the *right* of the left
+           * dock rather than running the whole way across.
+           */}
+          <div
+            className="flex flex-col h-[248px] sm:h-[300px] lg:h-[336px]"
+            style={{ background: "#1a1a1a" }}
+          >
+            <div className="flex flex-1 min-h-0">
+              {/*
+               * Left rail. An empty rail takes no space — *except* while a drag is in flight,
+               * when the product shows every rail so there is somewhere to drop
+               * (`EdgeRailManager.cpp:386`). The whole strip is the drop target, not the button,
+               * which is why `data-ptr` sits on the strip: an empty rail has no button to aim at.
+               */}
+              {(s.rails.left.widget || s.drag) && (
+                <div
+                  data-ptr="rail-left"
+                  className="flex flex-col items-center pt-1.5 shrink-0 border-r"
+                  style={{
+                    width: 20,
+                    background: s.drag?.over === "left" ? "var(--color-accent-dim)" : "#191c21",
+                    borderColor:
+                      s.drag?.over === "left" ? "var(--color-accent)" : "var(--color-border)",
+                    boxShadow:
+                      s.drag?.over === "left" ? "inset 0 0 0 1px var(--color-accent)" : undefined,
+                    transition: "background .18s, border-color .18s",
+                  }}
+                >
+                  {s.rails.left.widget && (
+                    <span
+                      className="flex items-center justify-center rounded-sm"
+                      style={{
+                        width: 15,
+                        height: 15,
+                        background: s.rails.left.open ? "var(--color-accent-dim)" : "transparent",
+                        color: s.rails.left.open ? "var(--color-accent)" : "var(--color-muted)",
+                        transition: "background .2s, color .2s",
+                      }}
+                    >
+                      <svg className="w-2.5 h-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
+                        <path strokeLinecap="round" d="M4 6h16M4 12h16M4 18h16" />
+                      </svg>
+                    </span>
+                  )}
+                </div>
+              )}
+
+              {/*
+               * The left dock. Wider on a phone than on a desktop, for the same reason the
+               * inventory *pane* is: below `sm` a third of the frame is a few characters across.
+               * It must not be hidden on mobile — the caption promises a dock sliding out, so
+               * hiding it would narrate something the visitor cannot see.
+               */}
+              {s.rails.left.open && s.rails.left.widget && (
+                <div
+                  className="flex flex-col shrink-0 border-r overflow-hidden w-[52%] sm:w-[34%]"
+                  style={{
+                    background: "#0a0a0d",
+                    borderColor: "var(--color-border)",
+                    animation: "cpt-pane-in .3s ease both",
+                  }}
+                >
+                  <RailDockHeader name={s.rails.left.widget} />
+                  <InventoryPanel repo={s.inventoryRepo} scanning={s.scanning} />
+                </div>
+              )}
+
+              <div className="flex flex-col flex-1 min-w-0">
           {/* View tabs */}
           <div
-            className="flex items-end h-8 px-1 border-b text-[11px] gap-0.5"
+            className="flex items-end h-8 px-1 border-b text-[11px] gap-0.5 shrink-0"
             style={{ background: "#101015", borderColor: "var(--color-border)" }}
           >
             {s.views.map((tab, i) => {
@@ -573,10 +870,7 @@ export default function TerminalDemo() {
           </div>
 
           {/* Panes */}
-          <div
-            className="flex gap-2 p-2 h-[248px] sm:h-[300px] lg:h-[336px]"
-            style={{ background: "#1a1a1a" }}
-          >
+          <div className="flex gap-2 p-2 flex-1 min-h-0">
             {v.panes.map((p, i) => {
               const on = i === v.active;
               const isInv = p.kind === "inventory";
@@ -602,6 +896,9 @@ export default function TerminalDemo() {
                     // The product outlines the focused pane in orange and the rest in grey.
                     outline: `1px solid ${on ? "#eb832a" : "#3c3c3c"}`,
                     outlineOffset: "-1px",
+                    // A pane whose tab is being dragged reads as lifted out of the layout.
+                    opacity: s.drag?.pane === i ? 0.45 : 1,
+                    transition: "opacity .2s",
                     animation: "cpt-pane-in .42s ease both",
                   }}
                 >
@@ -610,7 +907,12 @@ export default function TerminalDemo() {
                     style={{ background: "#1c1c1c", color: "var(--color-muted)" }}
                   >
                     <span className="flex items-center gap-1.5 min-w-0">
+                      {/*
+                       * The tab is the drag handle: `WidgetTabBar.cpp:204` makes it a drag
+                       * source handing the rails the same payload a rail button does.
+                       */}
                       <span
+                        data-ptr={`panetab-${i}`}
                         className="truncate px-1"
                         style={{
                           color: on ? "var(--color-foreground)" : "var(--color-muted)",
@@ -619,7 +921,9 @@ export default function TerminalDemo() {
                         }}
                       >
                         {isInv ? "AI Inventory 1" : `Terminal ${termNo}`}{" "}
-                        <span style={{ opacity: 0.45 }}>&#10005;</span>
+                        <span data-ptr={`paneclose-${i}`} style={{ opacity: 0.45 }}>
+                          &#10005;
+                        </span>
                       </span>
                       <span style={{ opacity: 0.45 }}>+</span>
                     </span>
@@ -682,43 +986,377 @@ export default function TerminalDemo() {
 
                   {/*
                    * TerminalWidget::renderAiOverlay draws this in the top-right of the pane that
-                   * is running the tool — orange for Claude, blue for Copilot. It is not a
-                   * status-bar item, and there is no token counter anywhere in the product.
+                   * is running the tool. It is not a status-bar item, and there is no token
+                   * counter anywhere in the product.
+                   *
+                   * The colour says the *state*, not the vendor — this used to be orange "for
+                   * Claude", which inverted the rule the product states outright. Working is
+                   * blue, awaiting-input amber, finished green, failed red, and the three
+                   * non-working states reword the label rather than showing the CLI's title.
                    */}
                   {p.ai && !isInv && (
                     <span
                       className="absolute top-8 right-2 flex items-center gap-1.5 px-2 py-1 rounded text-[10px]"
                       style={{
-                        background: "rgba(180,100,45,0.78)",
+                        background: AGENT_BADGE[p.ai.state].bg,
                         color: "#fff",
+                        transition: "background .35s ease",
                         animation: "cpt-pane-in .3s ease both",
                       }}
                     >
-                      <span style={{ animation: "cpt-pulse 1.4s ease-in-out infinite" }}>&#9679;</span>
-                      {p.ai}
+                      {p.ai.state === "working" && (
+                        <span style={{ animation: "cpt-pulse 1.4s ease-in-out infinite" }}>&#9679;</span>
+                      )}
+                      {p.ai.tool}
+                      {AGENT_BADGE[p.ai.state].suffix}
                     </span>
                   )}
                 </div>
               );
             })}
           </div>
+              </div>
+
+              {/*
+               * The right rail. The demo never docks anything here, but the product has three
+               * rails and reveals all of them during a drag, so hiding this one would understate
+               * where a widget can go.
+               */}
+              {s.drag && (
+                <div
+                  data-ptr="rail-right"
+                  className="shrink-0 border-l"
+                  style={{
+                    width: 20,
+                    background: s.drag.over === "right" ? "var(--color-accent-dim)" : "#191c21",
+                    borderColor:
+                      s.drag.over === "right" ? "var(--color-accent)" : "var(--color-border)",
+                    transition: "background .18s, border-color .18s",
+                  }}
+                />
+              )}
+            </div>
+
+            {/* Bottom band: dock above its rail, both spanning the full width. */}
+            {s.rails.bottom.open && s.rails.bottom.widget && (
+              <div
+                className="flex flex-col shrink-0 border-t overflow-hidden"
+                style={{
+                  height: "38%",
+                  background: "#0a0a0d",
+                  borderColor: "var(--color-border)",
+                  animation: "cpt-pane-in .3s ease both",
+                }}
+              >
+                <RailDockHeader name={s.rails.bottom.widget} />
+                <InventoryPanel repo={s.inventoryRepo} scanning={s.scanning} />
+              </div>
+            )}
+
+            {(s.rails.bottom.widget || s.drag) && (
+              <div
+                data-ptr="rail-bottom"
+                className="flex items-center px-1.5 shrink-0 border-t"
+                style={{
+                  height: 20,
+                  background: s.drag?.over === "bottom" ? "var(--color-accent-dim)" : "#191c21",
+                  borderColor:
+                    s.drag?.over === "bottom" ? "var(--color-accent)" : "var(--color-border)",
+                  boxShadow:
+                    s.drag?.over === "bottom" ? "inset 0 0 0 1px var(--color-accent)" : undefined,
+                  transition: "background .18s, border-color .18s",
+                }}
+              >
+                {/* A horizontal rail has room for the widget's name; a vertical one does not. */}
+                {s.rails.bottom.widget && (
+                  <span
+                    className="flex items-center gap-1 px-1.5 rounded-sm text-[10px]"
+                    style={{
+                      background: s.rails.bottom.open ? "var(--color-accent-dim)" : "transparent",
+                      color: s.rails.bottom.open ? "var(--color-accent)" : "var(--color-muted)",
+                      transition: "background .2s, color .2s",
+                    }}
+                  >
+                    <svg className="w-2 h-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
+                      <rect x="3" y="4" width="18" height="16" rx="2" />
+                      <path strokeLinecap="round" d="M3 14h18" />
+                    </svg>
+                    {s.rails.bottom.widget}
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/*
+           * Settings → Widgets. Drawn from a capture of the shipped build: a sidebar tree
+           * (Appearance / Terminal › Settings, Shortcuts / AI Inventory › Shortcuts) beside a
+           * scrolling pane of sections, with blue ticked checkboxes.
+           *
+           * Only the Terminal section is shown, and only the three checkboxes around the one the
+           * clip is about — `SettingsWindow.cpp` lists them in this order, and the tooltip on
+           * the last one is why the clip opens its terminal *after* ticking it.
+           */}
+          {s.settings.open && (
+            <div
+              className="absolute inset-0 z-30 flex items-start justify-center pt-8 px-3"
+              style={{ background: "rgba(0,0,0,0.35)" }}
+            >
+              <div
+                className="w-full max-w-[500px] rounded-md border overflow-hidden"
+                style={{
+                  background: "#1f2126",
+                  borderColor: "#3c3c3c",
+                  boxShadow: "0 18px 50px rgba(0,0,0,0.55)",
+                  animation: "cpt-pane-in .22s ease both",
+                }}
+              >
+                <div
+                  className="flex items-center justify-between px-3 h-7 text-[11px]"
+                  style={{ background: "#23262c", color: "var(--color-foreground)" }}
+                >
+                  <span>Settings - Widgets</span>
+                  <span data-ptr="settings-close" className="px-1" style={{ opacity: 0.75 }}>
+                    &#10005;
+                  </span>
+                </div>
+
+                <div className="flex text-[10px]" style={{ minHeight: 128 }}>
+                  <div
+                    className="w-[112px] shrink-0 border-r py-2 px-2 flex flex-col gap-1"
+                    style={{ borderColor: "#3c3c3c", color: "var(--color-muted)" }}
+                  >
+                    <span>Appearance</span>
+                    <span>&#9660; Terminal</span>
+                    <span
+                      className="px-1.5 rounded-sm"
+                      style={{ background: "#3a4351", color: "var(--color-foreground)" }}
+                    >
+                      Settings
+                    </span>
+                    <span className="pl-2">Shortcuts</span>
+                    <span>&#9660; AI Inventory</span>
+                    <span className="pl-2">Shortcuts</span>
+                  </div>
+
+                  <div className="flex-1 min-w-0 py-2 px-3">
+                    <p className="mb-2" style={{ color: "var(--color-foreground)" }}>
+                      Terminal
+                    </p>
+                    <div className="flex flex-col gap-2">
+                      {SETTINGS_CHECKS.map((c) => (
+                        <Check key={c.label} on={c.on} label={c.label} />
+                      ))}
+                      <Check
+                        ptr="chk-persist"
+                        on={s.settings.persistent}
+                        label="Keep shells running when the app closes"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/*
+           * The "still running" question (#121). Wording, button labels and their key hints are
+           * verbatim from `TerminalWidget::renderCloseConfirm`; "Keep running" is the primary
+           * button and "End session" the destructive one, which is the product's own emphasis.
+           *
+           * The product only asks this for a daemon-backed session, which is exactly why this
+           * beat comes after the checkbox in the clip.
+           */}
+          {s.closeAsk && (
+            <div
+              className="absolute inset-0 z-40 flex items-center justify-center px-4"
+              style={{ background: "rgba(0,0,0,0.45)" }}
+            >
+              <div
+                className="w-full max-w-[400px] rounded-md border overflow-hidden"
+                style={{
+                  background: "#1f2126",
+                  borderColor: "#3c3c3c",
+                  boxShadow: "0 18px 50px rgba(0,0,0,0.6)",
+                  animation: "cpt-pane-in .2s ease both",
+                }}
+              >
+                <div
+                  className="px-3 h-7 flex items-center text-[11px]"
+                  style={{ background: "#23262c", color: "var(--color-foreground)" }}
+                >
+                  Close {s.closeAsk.name}?
+                </div>
+                <div className="p-3 text-[10px] leading-relaxed">
+                  <p style={{ color: "var(--color-foreground)" }}>
+                    &apos;{s.closeAsk.process}&apos; is still running in this terminal.
+                  </p>
+                  <p className="mt-2" style={{ color: "var(--color-muted)" }}>
+                    Keeping it running closes the pane only - the session stays in Terminal
+                    Sessions, where it can be opened again. Ending it stops the shell and
+                    everything in it.
+                  </p>
+                  <div className="mt-3 flex gap-2">
+                    <span
+                      data-ptr="close-keep"
+                      className="px-2 py-1 rounded-sm"
+                      style={{ background: "var(--color-accent)", color: "#141013" }}
+                    >
+                      Keep running (K)
+                    </span>
+                    <span
+                      className="px-2 py-1 rounded-sm"
+                      style={{ background: "#a03731", color: "#fff" }}
+                    >
+                      End session (E)
+                    </span>
+                    <span
+                      className="px-2 py-1 rounded-sm"
+                      style={{ background: "#3a3f47", color: "var(--color-foreground)" }}
+                    >
+                      Cancel (Esc)
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/*
+           * The Terminal Sessions modal (Settings → Terminal Sessions, or `--show-sessions`).
+           *
+           * Columns, button labels, the four possible State values and the footer line are all
+           * taken from a capture of the shipped build with a daemon holding real sessions —
+           * `SessionsWindow::render`. `Open` is disabled for a row already on screen, which is
+           * why reattaching flips the row to "open here" and greys its button.
+           *
+           * It floats over the workspace rather than inside it: in the product this is a real
+           * ImGui window, and the app carries on behind it.
+           */}
+          {s.sessions.open && (
+            <div
+              className="absolute inset-0 z-30 flex items-start justify-center pt-10 px-3"
+              style={{ background: "rgba(0,0,0,0.35)" }}
+            >
+              <div
+                className="w-full max-w-[520px] rounded-md border overflow-hidden"
+                style={{
+                  background: "#1f2126",
+                  borderColor: "#3c3c3c",
+                  boxShadow: "0 18px 50px rgba(0,0,0,0.55)",
+                  animation: "cpt-pane-in .22s ease both",
+                }}
+              >
+                <div
+                  className="flex items-center justify-between px-3 h-7 text-[11px]"
+                  style={{ background: "#23262c", color: "var(--color-foreground)" }}
+                >
+                  <span>Terminal Sessions</span>
+                  <span data-ptr="dialog-close" className="px-1" style={{ opacity: 0.75 }}>
+                    &#10005;
+                  </span>
+                </div>
+
+                <div className="p-2.5">
+                  <div className="text-[10px]">
+                    <div
+                      className="grid grid-cols-[46px_42px_1fr_30px_62px_74px] gap-x-1.5 px-1.5 py-1 border-b"
+                      style={{ borderColor: "#3c3c3c", color: "var(--color-foreground)" }}
+                    >
+                      <span>Session</span>
+                      <span>Shell</span>
+                      <span>Directory</span>
+                      <span>Age</span>
+                      <span>State</span>
+                      <span />
+                    </div>
+                    {s.sessions.rows.map((r, i) => {
+                      const here = r.state === "open here";
+                      return (
+                        <div
+                          key={r.id}
+                          className="grid grid-cols-[46px_42px_1fr_30px_62px_74px] gap-x-1.5 items-center px-1.5 py-1 border-b"
+                          style={{
+                            borderColor: "#33363c",
+                            background: i % 2 ? "#24272d" : "transparent",
+                            color: "var(--color-muted)",
+                          }}
+                        >
+                          <span>{r.id}</span>
+                          <span>{r.shell}</span>
+                          <span className="truncate">{r.dir}</span>
+                          <span>{r.age}</span>
+                          <span
+                            style={{
+                              color: r.state === "detached" ? "var(--color-accent)" : undefined,
+                            }}
+                          >
+                            {r.state}
+                          </span>
+                          <span className="flex gap-1">
+                            <span
+                              data-ptr={here ? undefined : `sess-open-${r.id}`}
+                              className="px-1.5 rounded-sm"
+                              style={{
+                                background: here ? "#2a2d33" : "#3a3f47",
+                                color: here ? "#6b6f77" : "var(--color-foreground)",
+                              }}
+                            >
+                              Open
+                            </span>
+                            <span
+                              className="px-1.5 rounded-sm"
+                              style={{ background: "#3a3f47", color: "var(--color-foreground)" }}
+                            >
+                              End
+                            </span>
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <p className="mt-2 text-[9.5px] leading-snug" style={{ color: "#6b6f77" }}>
+                    {SESSIONS_FOOTER}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Status bar */}
           <div
             className="flex items-center justify-between px-3 h-7 border-t text-[10.5px]"
             style={{ background: "#141419", borderColor: "var(--color-border)", color: "var(--color-muted)" }}
           >
-            <span className="truncate">
-              Views: {s.views.length} <span style={{ opacity: 0.4 }}>|</span> Active: {v.name}{" "}
-              <span style={{ opacity: 0.4 }}>|</span> Widgets: {v.panes.length}
+            {/*
+             * Rewritten for #128, against a capture of the shipped build: a blue dot, the active
+             * view's name bright, then the counts, dot-separated and muted. It used to read
+             * `Views: 1 | Active: Main | Widgets: 2`, which is the pre-#128 status bar.
+             */}
+            <span className="truncate flex items-center gap-1.5">
+              <span style={{ color: "#64A5EB" }}>&#9679;</span>
+              <span style={{ color: "var(--color-foreground)" }}>{v.name}</span>
+              <span style={{ opacity: 0.55 }}>
+                &middot; {v.panes.length} {v.panes.length === 1 ? "widget" : "widgets"} &middot;{" "}
+                {s.views.length} {s.views.length === 1 ? "view" : "views"}
+              </span>
             </span>
-            <span className="flex items-center gap-3 shrink-0">
-              <span>100%</span>
+            <span className="flex items-center gap-2 shrink-0">
               {/*
-               * The product's status bar ends with a live key-state indicator — it echoes the
-               * modifiers and letter currently held. Empty brackets when nothing is pressed.
+               * #128 turned the always-present `[]` key readout into a pill that appears only
+               * while a key is actually held. Nothing is drawn here at rest.
                */}
-              <span style={{ opacity: 0.55 }}>[{s.keys ? s.keys.join("+") : ""}]</span>
+              {s.keys && (
+                <span
+                  className="px-1.5 py-0.5 rounded"
+                  style={{ background: "#31353d", color: "var(--color-foreground)" }}
+                >
+                  {s.keys.join("+")}
+                </span>
+              )}
+              <span className="flex items-center gap-1">
+                100% <span style={{ fontSize: "7px", opacity: 0.7 }}>&#9660;</span>
+              </span>
             </span>
           </div>
         </div>
@@ -747,6 +1385,25 @@ export default function TerminalDemo() {
                   animation: "cpt-click .4s ease-out",
                 }}
               />
+            )}
+            {/*
+             * What is being carried. ImGui draws the drag payload under the cursor; without
+             * something here the pane would simply dim and the widget would arrive on the rail
+             * with nothing visibly crossing the gap.
+             */}
+            {s.drag && (
+              <span
+                className="absolute whitespace-nowrap px-1.5 py-0.5 rounded text-[10px]"
+                style={{
+                  left: 12,
+                  top: 12,
+                  background: "var(--color-accent-dim)",
+                  color: "var(--color-accent)",
+                  border: "1px solid var(--color-accent)",
+                }}
+              >
+                {s.drag.label}
+              </span>
             )}
             <svg
               width="14"
@@ -806,6 +1463,55 @@ export default function TerminalDemo() {
           </button>
         )}
       </div>
+
+      {/*
+       * The demo in words.
+       *
+       * The frame above is `role="img"` — correct, because a simulated terminal is a picture of
+       * the product rather than readable content — and only the *selected* clip is ever in the
+       * DOM. Between them that means four fifths of what the demo says reaches no crawler, no
+       * assistant and no screen reader. This is the text equivalent: every clip's blurb and its
+       * narration, server-rendered.
+       *
+       * It is derived from `demos`, so it cannot drift from the clips: a caption edited above is
+       * an edit here too.
+       *
+       * What is deliberately *not* done: rendering all five simulated frames into the DOM and
+       * hiding four. That is five times the markup to publish `cargo build --release` as
+       * keyword text, and `role="img"` would suppress it anyway. The sentences are the part
+       * worth reading.
+       */}
+      <details className="mt-4 group">
+        <summary
+          className="cursor-pointer list-none text-xs cpt-quiet inline-flex items-center gap-1.5"
+          style={{ color: "var(--color-muted)" }}
+        >
+          <span>What the demo shows, in words</span>
+          <svg
+            className="w-3 h-3 transition-transform group-open:rotate-180"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+            aria-hidden
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </summary>
+        <ol className="mt-3 flex flex-col gap-3">
+          {clips.map((d) => (
+            <li key={d.id} className="text-xs leading-relaxed">
+              <span style={{ color: "var(--color-foreground)" }}>{d.label}</span>
+              <span style={{ color: "var(--color-muted)" }}> — {d.blurb} </span>
+              <span style={{ color: "var(--color-muted)", opacity: 0.8 }}>
+                {d.script
+                  .filter((op): op is Extract<Op, { k: "caption" }> => op.k === "caption")
+                  .map((op) => op.text)
+                  .join(" ")}
+              </span>
+            </li>
+          ))}
+        </ol>
+      </details>
     </div>
   );
 }
@@ -823,6 +1529,58 @@ const SCOPE: Record<InventoryItem["scope"], string> = {
   user: "#4ea36a",
   plugin: "#a077c8",
 };
+
+/**
+ * A rail dock's header. In the product every dock has one: the widget's name on the left, and an
+ * auto-hide toggle and a close button on the right. Taken from a capture of the shipped build.
+ */
+/** A settings checkbox: a filled blue box with a tick when on, an empty one when off. */
+function Check({ on, label, ptr }: { on: boolean; label: string; ptr?: string }) {
+  return (
+    <span className="flex items-start gap-2" style={{ color: "var(--color-muted)" }}>
+      <span
+        data-ptr={ptr}
+        className="flex items-center justify-center shrink-0 rounded-[2px] mt-[1px]"
+        style={{
+          width: 11,
+          height: 11,
+          background: on ? "#4a90e2" : "#2a2d33",
+          border: on ? "none" : "1px solid #4a4f57",
+          transition: "background .18s",
+        }}
+      >
+        {on && (
+          <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth={4}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+          </svg>
+        )}
+      </span>
+      <span>{label}</span>
+    </span>
+  );
+}
+
+function RailDockHeader({ name }: { name: string }) {
+  return (
+    <div
+      className="flex items-center justify-between gap-2 px-2 h-6 shrink-0 text-[10.5px]"
+      style={{ background: "#1c1c1c", color: "var(--color-foreground)" }}
+    >
+      <span className="flex items-center gap-1.5 min-w-0 truncate">
+        <svg className="w-2.5 h-2.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" d="M4 6h16M4 12h16M4 18h16" />
+        </svg>
+        {name}
+      </span>
+      <span className="flex items-center gap-2 shrink-0" style={{ opacity: 0.5 }}>
+        <svg className="w-2.5 h-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" d="M12 17v5M9 3h6l-1 6 3 3H7l3-3-1-6z" />
+        </svg>
+        <span>&#10005;</span>
+      </span>
+    </div>
+  );
+}
 
 function InventoryPanel({ repo, scanning }: { repo: string; scanning: string | null }) {
   const inventory = inventories[repo] ?? inventories.cpt;

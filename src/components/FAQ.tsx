@@ -85,7 +85,7 @@ const faqs = [
   {
     id: "uninstall",
     q: "How do I remove it?",
-    a: "Settings → About → Uninstall removes it in one dialog, and an uninstall.sh ships alongside the Linux build for when the app is gone or you would rather use a shell. Both clear the same things — the binary, the desktop entry and the icon — and both offer to keep your settings and stay signed in. Everything lives in your home directory, so no admin rights and no package manager are involved either way.",
+    a: "Settings → Uninstall… removes it in one dialog, and an uninstall.sh ships alongside the Linux build for when the app is gone or you would rather use a shell. Both clear the same things — the binary, the desktop entry and the icon — and both offer to keep your settings and stay signed in. Everything lives in your home directory, so no admin rights and no package manager are involved either way.",
   },
 ];
 

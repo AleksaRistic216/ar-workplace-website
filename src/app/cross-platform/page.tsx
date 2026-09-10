@@ -8,6 +8,7 @@ export const metadata: Metadata = {
   title: "Cross-Platform — Linux and Windows behave the same",
   description:
     "The platform quirks CPT resolves on Linux and Windows, and the full keyboard shortcut table.",
+  alternates: { canonical: "/cross-platform" },
 };
 
 export default function CrossPlatformPage() {

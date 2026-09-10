@@ -8,6 +8,7 @@ export const metadata: Metadata = {
   title: "Pricing — Cross Platform Terminal",
   description:
     "What Cross Platform Terminal costs, monthly or yearly, and what a licence includes.",
+  alternates: { canonical: "/pricing" },
 };
 
 export default function PricingPage() {

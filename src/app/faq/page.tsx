@@ -8,6 +8,7 @@ export const metadata: Metadata = {
   title: "FAQ — Cross Platform Terminal",
   description:
     "Answers to what people ask before buying Cross Platform Terminal — billing, platforms, updates, refunds and support.",
+  alternates: { canonical: "/faq" },
 };
 
 export default function FAQPage() {

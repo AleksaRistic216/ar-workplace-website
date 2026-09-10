@@ -8,10 +8,16 @@ import { RELEASES_URL, formatSize, getLatestRelease, type ReleaseAsset } from "@
 // Keep in step with RELEASE_REVALIDATE_SECONDS in lib/release.ts.
 export const revalidate = 600;
 
+// Same origin as sitemap.ts, robots.ts and metadataBase — a mismatch puts absolute URLs in the
+// structured data that point somewhere the site is not served from.
+const SITE_URL =
+  process.env.NEXT_PUBLIC_SITE_URL || "https://www.crossplatformterminal.com";
+
 export const metadata: Metadata = {
   title: "Download Cross Platform Terminal — Linux & Windows",
   description:
     "Download the latest Cross Platform Terminal build. No installer: extract the archive and run it. Linux AppImage and tar.gz, Windows ZIP.",
+  alternates: { canonical: "/download" },
 };
 
 function LinuxIcon() {
@@ -108,8 +114,42 @@ function PlatformCard({
 export default async function DownloadPage() {
   const release = await getLatestRelease();
 
+  /*
+   * The current build as structured data: version, date, and the actual download URLs.
+   *
+   * This is the page an assistant is sent to when someone asks "where do I get it and what do I
+   * need to run it", so the answer is spelled out rather than left to be scraped off buttons —
+   * including the glibc floor, which is the one thing that decides whether the Linux download
+   * will start at all.
+   */
+  const jsonLd = release
+    ? {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        name: "Cross Platform Terminal (CPT)",
+        applicationCategory: "DeveloperApplication",
+        operatingSystem: "Linux, Windows",
+        processorRequirements: "x86-64",
+        softwareVersion: release.version.replace(/^v/, ""),
+        ...(release.publishedAt ? { datePublished: release.publishedAt } : {}),
+        softwareRequirements:
+          "Linux with glibc 2.39 or newer, or Windows 10 / 11. No installer: extract the archive and run it.",
+        installUrl: `${SITE_URL}/download`,
+        downloadUrl: [release.linuxAppImage, release.linuxTarGz, release.windows]
+          .filter((a): a is ReleaseAsset => a !== null)
+          .map((a) => a.url),
+        releaseNotes: `${SITE_URL}/changelog`,
+      }
+    : null;
+
   return (
     <>
+      {jsonLd && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
+      )}
       <Navbar />
       <main className="flex-1 flex flex-col items-center justify-center px-6 pt-32 pb-24">
         <div className="max-w-3xl w-full mx-auto">
